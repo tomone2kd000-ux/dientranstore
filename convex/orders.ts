@@ -111,10 +111,10 @@ async function handleOrderStatusTransition(
   // Chuyển sang Cancelled
   if (isCancelledStatus(newStatus) && !isCancelledStatus(oldStatus)) {
     const [brandNameSetting, siteUrlSetting] = await Promise.all([
-      ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "brand_name")).unique(),
+      ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "site_name")).unique(),
       ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "site_url")).unique(),
     ]);
-    const brandName = brandNameSetting?.value ? String(brandNameSetting.value).trim() : "Dien Tran Store";
+    const brandName = brandNameSetting?.value ? String(brandNameSetting.value).trim() : "YourBrand";
     const siteUrl = siteUrlSetting?.value ? String(siteUrlSetting.value).trim() : "http://localhost:3000";
 
     if (customerDoc.email) {
@@ -1192,10 +1192,10 @@ export const placeOrder = mutation({
     if (orderDoc && customerDoc) {
       const [siteUrlSetting, brandNameSetting] = await Promise.all([
         ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "site_url")).unique(),
-        ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "brand_name")).unique(),
+        ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "site_name")).unique(),
       ]);
       const siteUrl = siteUrlSetting?.value ? String(siteUrlSetting.value).trim() : "http://localhost:3000";
-      const brandName = brandNameSetting?.value ? String(brandNameSetting.value).trim() : "Dien Tran Store";
+      const brandName = brandNameSetting?.value ? String(brandNameSetting.value).trim() : "YourBrand";
 
       if (customerDoc.email) {
         const customerHtml = getOrderPlacedCustomerTemplate(orderDoc, siteUrl, brandName);

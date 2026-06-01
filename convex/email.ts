@@ -32,7 +32,7 @@ async function sendTransactionalEmailInternal(
       "mail_from_email",
       "mail_from_name",
       "resend_accounts",
-      "brand_name",
+      "site_name",
       "site_url",
     ],
   });
@@ -245,7 +245,7 @@ async function sendTransactionalEmailInternal(
         testMode: selectedAccount.testMode !== false, // default to testMode: true if not specified
       });
 
-      const brandName = (settings.brand_name ?? "Dien Tran Store").trim();
+      const brandName = (settings.site_name ?? "YourBrand").trim();
       const finalFromEmail = selectedAccount.fromEmail || fromEmail;
       const finalFromName = selectedAccount.fromName || fromName || brandName || "Store";
 
@@ -313,9 +313,9 @@ export const sendOtpEmail = internalAction({
   },
   handler: async (ctx, args): Promise<any> => {
     const settings = (await ctx.runQuery(api.settings.getMultiple, {
-      keys: ["brand_name"],
+      keys: ["site_name"],
     })) as Record<string, any>;
-    const brandName = settings.brand_name ? String(settings.brand_name).trim() : "Dien Tran Store";
+    const brandName = settings.site_name ? String(settings.site_name).trim() : "YourBrand";
 
     const { getOtpTemplate } = await import("./emailTemplates");
     const htmlContent = getOtpTemplate(args.otpCode, brandName);

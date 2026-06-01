@@ -60,10 +60,10 @@ interface ResendAccount {
 }
 
 export default function IntegrationsPage() {
-  const settings = useQuery(api.settings.getMultiple, { keys: [...SETTINGS_KEYS, 'brand_name'] });
+  const settings = useQuery(api.settings.getMultiple, { keys: [...SETTINGS_KEYS, 'site_name'] });
   const setMultiple = useMutation(api.settings.setMultiple);
 
-  const brandName = typeof settings?.brand_name === 'string' ? settings.brand_name.trim() : 'Dien Tran Store';
+  const brandName = typeof settings?.site_name === 'string' ? settings.site_name.trim() : 'YourBrand';
 
   const [form, setForm] = useState<Record<SettingsKey, string>>(DEFAULT_FORM);
 

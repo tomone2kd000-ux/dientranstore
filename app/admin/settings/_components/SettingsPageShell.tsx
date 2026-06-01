@@ -155,7 +155,7 @@ const EMAIL_SETTING_KEYS = [
 const EMAIL_DEFAULTS: Record<(typeof EMAIL_SETTING_KEYS)[number], string> = {
   mail_driver: 'resend',
   mail_from_email: 'onboarding@resend.dev',
-  mail_from_name: 'Dien Tran Store',
+  mail_from_name: 'YourBrand',
   order_notification_emails: '',
 };
 const DEFAULT_HEADER_CONFIG: HeaderConfig = {
@@ -509,7 +509,11 @@ function SettingsContent({ section }: { section: SettingsSection }) {
       }
       EMAIL_SETTING_KEYS.forEach((key) => {
         if (values[key] === undefined) {
-          values[key] = EMAIL_DEFAULTS[key];
+          if (key === 'mail_from_name') {
+            values[key] = (values.site_name as string) || EMAIL_DEFAULTS.mail_from_name;
+          } else {
+            values[key] = EMAIL_DEFAULTS[key];
+          }
         }
       });
       setIsSecondaryAuto(values.site_brand_mode === 'single' ? true : !values.site_brand_secondary);
@@ -584,6 +588,12 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 
   const getStringField = (key: string, fallback = '') => {
     const value = form[key];
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value;
+    }
+    if (key === 'mail_from_name') {
+      return (form.site_name as string) || fallback;
+    }
     return typeof value === 'string' ? value : fallback;
   };
 
@@ -608,8 +618,8 @@ function SettingsContent({ section }: { section: SettingsSection }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: email,
-          subject: `Email test từ ${form.brand_name || 'Dien Tran Store'}`,
-          html: `<p>Đây là email test từ hệ thống ${form.brand_name || 'Dien Tran Store'}.</p>`,
+          subject: `Email test từ ${getStringField('mail_from_name', 'YourBrand')}`,
+          html: `<p>Đây là email test từ hệ thống ${getStringField('mail_from_name', 'YourBrand')}.</p>`,
         }),
       });
       if (!response.ok) {
@@ -2115,7 +2125,7 @@ function SettingsContent({ section }: { section: SettingsSection }) {
                             <Input
                               value={getStringField('mail_from_name', EMAIL_DEFAULTS.mail_from_name)}
                               onChange={(event) => updateField('mail_from_name', event.target.value)}
-                              placeholder="Dien Tran Store"
+                              placeholder={getStringField('site_name', 'YourBrand')}
                             />
                           </div>
                           <div className="space-y-2">

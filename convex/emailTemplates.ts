@@ -7,7 +7,7 @@ const formatPrice = (value: number) => {
   }).format(value);
 };
 
-export function getOtpTemplate(otpCode: string, brandName: string = "Dien Tran Store"): string {
+export function getOtpTemplate(otpCode: string, brandName: string = "YourBrand"): string {
   return `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
       <div style="text-align: center; margin-bottom: 24px;">
@@ -54,7 +54,7 @@ const formatSiteUrl = (siteUrl: string) => {
   return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
 };
 
-export function getOrderPlacedCustomerTemplate(order: Doc<"orders">, siteUrl: string, brandName: string = "Dien Tran Store"): string {
+export function getOrderPlacedCustomerTemplate(order: Doc<"orders">, siteUrl: string, brandName: string = "YourBrand"): string {
   const itemsHtml = order.items
     .map(
       (item) => `
@@ -146,7 +146,7 @@ export function getOrderPlacedCustomerTemplate(order: Doc<"orders">, siteUrl: st
   `;
 }
 
-export function getOrderPlacedShopTemplate(order: Doc<"orders">, customer: Doc<"customers">, siteUrl: string, _brandName: string = "Dien Tran Store"): string {
+export function getOrderPlacedShopTemplate(order: Doc<"orders">, customer: Doc<"customers">, siteUrl: string, _brandName: string = "YourBrand"): string {
   const itemsHtml = order.items
     .map(
       (item) => `
@@ -226,7 +226,7 @@ export function getOrderPlacedShopTemplate(order: Doc<"orders">, customer: Doc<"
   `;
 }
 
-export function getOrderDeliveredTemplate(order: Doc<"orders">, siteUrl: string, brandName: string = "Dien Tran Store"): string {
+export function getOrderDeliveredTemplate(order: Doc<"orders">, siteUrl: string, brandName: string = "YourBrand"): string {
   return `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
       <div style="text-align: center; margin-bottom: 24px;">
@@ -255,7 +255,7 @@ export function getOrderDeliveredTemplate(order: Doc<"orders">, siteUrl: string,
   `;
 }
 
-export function getOrderCancelledTemplate(order: Doc<"orders">, siteUrl: string, brandName: string = "Dien Tran Store", reason?: string): string {
+export function getOrderCancelledTemplate(order: Doc<"orders">, siteUrl: string, brandName: string = "YourBrand", reason?: string): string {
   return `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
       <div style="text-align: center; margin-bottom: 24px;">
