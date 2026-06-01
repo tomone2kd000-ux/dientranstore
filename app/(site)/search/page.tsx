@@ -31,6 +31,7 @@ import { useSearchFilterConfig } from '@/lib/experiences';
 import { useCustomerAuth } from '@/app/(site)/auth/context';
 import type { Id } from '@/convex/_generated/dataModel';
 import { CategoryCombobox } from './_components/CategoryCombobox';
+import { QuickAddVariantModal } from '@/components/products/QuickAddVariantModal';
 
 // Helper format price
 const formatPrice = (value: number) => {
@@ -112,6 +113,7 @@ function SearchProductCardActions({
   showAddToCartButton,
   showBuyNowButton,
   cartButtonsLayout,
+  enableQuickAddVariant,
   onAddToCart,
   onBuyNow
 }: {
@@ -120,6 +122,7 @@ function SearchProductCardActions({
   showAddToCartButton: boolean;
   showBuyNowButton: boolean;
   cartButtonsLayout?: 'stack' | 'grid-2';
+  enableQuickAddVariant: boolean;
   onAddToCart: (e: React.MouseEvent) => void;
   onBuyNow: (e: React.MouseEvent) => void;
 }) {
@@ -144,7 +147,7 @@ function SearchProductCardActions({
           }}
         >
           <ShoppingCart size={12} />
-          <span>{isOutOfStock ? 'Hết hàng' : (product.hasVariants ? 'Chọn phân loại' : 'Thêm giỏ')}</span>
+          <span>{isOutOfStock ? 'Hết hàng' : (product.hasVariants && !enableQuickAddVariant ? 'Chọn phân loại' : 'Thêm giỏ')}</span>
         </button>
       )}
       {showBuyNowButton && (
@@ -204,11 +207,34 @@ function SearchContent() {
   // Cart
   const { addItem, openDrawer } = useCart();
 
+  const [quickAddTarget, setQuickAddTarget] = useState<null | {
+    product: any;
+    action: 'addToCart' | 'buyNow';
+  }>(null);
+
   // Search Filter Experience Config
   const searchFilterConfig = useSearchFilterConfig();
+  const enableQuickAddVariant = searchFilterConfig.enableQuickAddVariant ?? true;
   const cornerRadiusClass = searchFilterConfig.cornerRadius === 'none' ? 'rounded-none' 
     : searchFilterConfig.cornerRadius === 'sm' ? 'rounded-lg' 
     : 'rounded-2xl';
+
+  const openQuickAdd = (product: any, action: 'addToCart' | 'buyNow') => {
+    setQuickAddTarget({ product, action });
+  };
+  const closeQuickAdd = () => setQuickAddTarget(null);
+  const handleQuickAddConfirm = async (variantId: Id<'productVariants'>, quantity: number) => {
+    if (!quickAddTarget) return;
+    const { product, action } = quickAddTarget;
+    if (action === 'buyNow') {
+      router.push(`/checkout?productId=${product._id}&variantId=${variantId}&quantity=${quantity}`);
+    } else {
+      await addItem(product._id, quantity, variantId);
+      notifyAddToCart();
+      openDrawer();
+    }
+    setQuickAddTarget(null);
+  };
 
   // Route Mode & Settings
   const routeModeSetting = useQuery(api.settings.getValue, { key: 'ia_route_mode', defaultValue: 'unified' });
@@ -416,21 +442,25 @@ function SearchContent() {
     e.stopPropagation();
     
     if (product.hasVariants) {
-      // Navigate to detail page to choose variant
-      const categorySlug = productCategorySlugMap.get(product.categoryId) || 'products';
-      const path = buildDetailPath({
-        categorySlug,
-        mode: routeMode,
-        moduleKey: 'products',
-        recordSlug: product.slug
-      });
-      router.push(path);
+      if (enableQuickAddVariant) {
+        openQuickAdd(product, 'addToCart');
+      } else {
+        // Navigate to detail page to choose variant
+        const categorySlug = productCategorySlugMap.get(product.categoryId) || 'products';
+        const path = buildDetailPath({
+          categorySlug,
+          mode: routeMode,
+          moduleKey: 'products',
+          recordSlug: product.slug
+        });
+        router.push(path);
+      }
     } else {
       void addItem(product._id, 1);
       notifyAddToCart();
       openDrawer();
     }
-  }, [addItem, routeMode, productCategorySlugMap, router, openDrawer]);
+  }, [addItem, routeMode, productCategorySlugMap, router, openDrawer, enableQuickAddVariant]);
 
   // Resolve detail hrefs
   const getProductDetailHref = (product: any) => buildDetailPath({
@@ -478,12 +508,16 @@ function SearchContent() {
     e.stopPropagation();
     if (!product.hasVariants && product.stock <= 0) return;
     if (product.hasVariants) {
-      const categorySlug = productCategorySlugMap.get(product.categoryId) || 'products';
-      router.push(buildDetailPath({ categorySlug, mode: routeMode, moduleKey: 'products', recordSlug: product.slug }));
+      if (enableQuickAddVariant) {
+        openQuickAdd(product, 'buyNow');
+      } else {
+        const categorySlug = productCategorySlugMap.get(product.categoryId) || 'products';
+        router.push(buildDetailPath({ categorySlug, mode: routeMode, moduleKey: 'products', recordSlug: product.slug }));
+      }
       return;
     }
     router.push(`/checkout?productId=${product._id}&quantity=1`);
-  }, [router, routeMode, productCategorySlugMap]);
+  }, [router, routeMode, productCategorySlugMap, enableQuickAddVariant]);
 
   // Calculate current pagination metrics
   const totalCount = activeTab === 'product' ? (prodCount ?? 0) : activeTab === 'post' ? (postCount ?? 0) : (svcCount ?? 0);
@@ -801,6 +835,7 @@ function SearchContent() {
                               showAddToCartButton={showAddToCartButton}
                               showBuyNowButton={showBuyNowButton}
                               cartButtonsLayout={searchFilterConfig.cartButtonsLayout}
+                              enableQuickAddVariant={enableQuickAddVariant}
                               onAddToCart={(e) => handleAddToCart(e, product)}
                               onBuyNow={(e) => handleBuyNow(e, product)}
                             />
@@ -897,7 +932,7 @@ function SearchContent() {
                                   }}
                                 >
                                   <ShoppingCart size={12} />
-                                  <span className="hidden sm:inline">{(product.hasVariants || product.stock > 0) ? (product.hasVariants ? 'Chọn phân loại' : 'Thêm giỏ') : 'Hết hàng'}</span>
+                                  <span className="hidden sm:inline">{(product.hasVariants || product.stock > 0) ? (product.hasVariants && !enableQuickAddVariant ? 'Chọn phân loại' : 'Thêm giỏ') : 'Hết hàng'}</span>
                                 </button>
                               )}
                               {showBuyNowButton && (
@@ -1203,6 +1238,18 @@ function SearchContent() {
                   </button>
                 </nav>
               </div>
+            )}
+            {/* Quick Add Variant Modal */}
+            {quickAddTarget && (
+              <QuickAddVariantModal
+                key={`${quickAddTarget.product._id}-${quickAddTarget.action}`}
+                isOpen={Boolean(quickAddTarget)}
+                product={quickAddTarget.product}
+                brandColor={primaryColor}
+                actionLabel={quickAddTarget.action === 'buyNow' ? 'Mua ngay' : 'Thêm vào giỏ'}
+                onClose={closeQuickAdd}
+                onConfirm={handleQuickAddConfirm}
+              />
             )}
           </div>
         )}
