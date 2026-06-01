@@ -5,8 +5,9 @@ import { api } from "../_generated/api";
 import { v } from "convex/values";
 import { dependencyType, fieldType, moduleCategory } from "../lib/validators";
 import { syncModuleRuntimeConfig } from "../lib/moduleConfigSync";
-import { cleanupProductFramesByAspectRatio } from "../productImageFrames";
 import { resolveMenuMaxDepthLevel } from "../../lib/utils/menu-tree";
+import { TRUST_PAGE_SLOTS } from "../../lib/ia/trust-pages";
+import { validateShippingMethods, validatePaymentMethods, validateOrderStatuses } from "../../lib/orders/config-validation";
 
 // ============ ADMIN MODULES ============
 
@@ -47,7 +48,7 @@ const createToggleResult = (result: ToggleModuleResult): ToggleModuleResult => r
 const createToggleBasicResult = (result: ToggleModuleBasicResult): ToggleModuleBasicResult => result;
 
 function normalizeRolesModule<T extends ModuleRecord>(moduleItem: T): T {
-  if (moduleItem.key !== "roles") {
+  if (moduleItem.key !== "roles" && moduleItem.key !== "customers") {
     return moduleItem;
   }
   if (!moduleItem.isCore) {
@@ -60,7 +61,7 @@ async function normalizeRolesModuleWithPatch<T extends ModuleRecord>(
   ctx: MutationCtx,
   moduleItem: T
 ): Promise<T> {
-  if (moduleItem.key !== "roles") {
+  if (moduleItem.key !== "roles" && moduleItem.key !== "customers") {
     return moduleItem;
   }
   if (!moduleItem.isCore) {
@@ -70,19 +71,17 @@ async function normalizeRolesModuleWithPatch<T extends ModuleRecord>(
   return { ...moduleItem, isCore: false } as T;
 }
 
-async function repairRolesCoreFlag(ctx: MutationCtx) {
-  const rolesRecord = await ctx.db
-    .query("adminModules")
-    .withIndex("by_key", (q) => q.eq("key", "roles"))
-    .unique();
-  if (!rolesRecord) {
-    return null;
+async function repairSystemCoreFlags(ctx: MutationCtx) {
+  const keysToRepair = ["roles", "customers"];
+  for (const key of keysToRepair) {
+    const record = await ctx.db
+      .query("adminModules")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .unique();
+    if (record && record.isCore) {
+      await ctx.db.patch(record._id, { isCore: false });
+    }
   }
-  if (rolesRecord.isCore) {
-    await ctx.db.patch(rolesRecord._id, { isCore: false });
-    return { ...rolesRecord, isCore: false };
-  }
-  return rolesRecord;
 }
 
 async function upsertAdminPermissionMode(ctx: MutationCtx, value: "simple_full_admin" | "rbac") {
@@ -136,6 +135,68 @@ async function normalizeMenuItemsToMaxLevel(ctx: MutationCtx, maxLevelRaw: unkno
       parentId: nextParentId,
     });
   }));
+}
+
+const toSearchableTrust = (value?: string | null) =>
+  (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replaceAll(/[\u0300-\u036f]/g, "")
+    .replaceAll(/đ/g, "d");
+
+const isPolicyCategory = (name?: string, slug?: string) => {
+  const target = toSearchableTrust(`${name ?? ""} ${slug ?? ""}`);
+  return target.includes("chinh sach") || target.includes("policy") || target.includes("chinh-sach");
+};
+
+async function ensureTrustPagesPolicyCategory(ctx: MutationCtx) {
+  const categories = await ctx.db.query("postCategories").take(200);
+  const existing = categories.find((category) => isPolicyCategory(category.name, category.slug));
+  if (existing) {
+    return existing._id;
+  }
+
+  const allCategories = await ctx.db.query("postCategories").take(1000);
+  const maxOrder = allCategories.reduce((acc, item) => Math.max(acc, item.order ?? 0), 0);
+
+  return ctx.db.insert("postCategories", {
+    active: true,
+    name: "Chính sách",
+    slug: "chinh-sach",
+    order: maxOrder + 1,
+  });
+}
+
+async function cleanupTrustPagesData(ctx: MutationCtx) {
+  const trustSettingsKeys = [
+    ...TRUST_PAGE_SLOTS.flatMap((slot) => [slot.iaKey, slot.mappingKey]),
+    "trust_page_last_autogen_at",
+  ];
+
+  for (const key of trustSettingsKeys) {
+    const setting = await ctx.db
+      .query("settings")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .unique();
+    if (!setting) {
+      continue;
+    }
+
+    const nextValue = TRUST_PAGE_SLOTS.some((slot) => slot.iaKey === key) ? false : null;
+    await ctx.db.patch(setting._id, { group: "ia", value: nextValue });
+  }
+
+  const categories = await ctx.db.query("postCategories").take(500);
+  const policyCategories = categories.filter((category) => isPolicyCategory(category.name, category.slug));
+
+  for (const category of policyCategories) {
+    const posts = await ctx.db
+      .query("posts")
+      .withIndex("by_category_status", (q) => q.eq("categoryId", category._id))
+      .collect();
+    await Promise.all(posts.map((post) => ctx.db.delete(post._id)));
+    await ctx.db.delete(category._id);
+  }
 }
 
 export const migrateCalendarToSubscriptions = mutation({
@@ -323,7 +384,7 @@ export const getDependentModules = query({
 export const toggleModule = mutation({
   args: { enabled: v.boolean(), key: v.string(), updatedBy: v.optional(v.id("users")) },
   handler: async (ctx, args) => {
-    await repairRolesCoreFlag(ctx);
+    await repairSystemCoreFlags(ctx);
     const allModules = await ctx.db.query("adminModules").collect();
     const modulesByKey = new Map(allModules.map((module) => [module.key, module]));
     const moduleRecord = modulesByKey.get(args.key) ?? null;
@@ -405,7 +466,7 @@ export const toggleModuleWithCascade = mutation({
     updatedBy: v.optional(v.id("users")), // Modules con cần disable cùng
   },
   handler: async (ctx, args) => {
-    await repairRolesCoreFlag(ctx);
+    await repairSystemCoreFlags(ctx);
     const allModules = await ctx.db.query("adminModules").collect();
     const modulesByKey = new Map(allModules.map((module) => [module.key, module]));
     const moduleRecord = modulesByKey.get(args.key) ?? null;
@@ -804,6 +865,24 @@ export const toggleModuleFeature = mutation({
         enabled: args.enabled,
         name: derivedName || args.featureKey,
       });
+
+      if (args.moduleKey === "settings" && args.featureKey === "enableTrustPages") {
+        if (args.enabled) {
+          await ensureTrustPagesPolicyCategory(ctx);
+        } else {
+          const autoGenerateFeature = await ctx.db
+            .query("moduleFeatures")
+            .withIndex("by_module_feature", (q) =>
+              q.eq("moduleKey", "settings").eq("featureKey", "enableTrustPagesAutoGenerate")
+            )
+            .unique();
+          if (autoGenerateFeature?.enabled) {
+            await ctx.db.patch(autoGenerateFeature._id, { enabled: false });
+          }
+          await cleanupTrustPagesData(ctx);
+        }
+      }
+
       if (args.moduleKey === 'products' && args.featureKey === 'enableCategoryHierarchy' && !args.enabled) {
         const categories = await ctx.db
           .query('productCategories')
@@ -824,6 +903,24 @@ export const toggleModuleFeature = mutation({
         await ctx.db.patch(linkedField._id, { enabled: args.enabled });
       }
     }
+
+    if (args.moduleKey === "settings" && args.featureKey === "enableTrustPages") {
+      if (args.enabled) {
+        await ensureTrustPagesPolicyCategory(ctx);
+      } else {
+        const autoGenerateFeature = await ctx.db
+          .query("moduleFeatures")
+          .withIndex("by_module_feature", (q) =>
+            q.eq("moduleKey", "settings").eq("featureKey", "enableTrustPagesAutoGenerate")
+          )
+          .unique();
+        if (autoGenerateFeature?.enabled) {
+          await ctx.db.patch(autoGenerateFeature._id, { enabled: false });
+        }
+        await cleanupTrustPagesData(ctx);
+      }
+    }
+
     if (args.moduleKey === 'products' && args.featureKey === 'enableCategoryHierarchy' && !args.enabled) {
       const categories = await ctx.db
         .query('productCategories')
@@ -878,6 +975,30 @@ export const getModuleSetting = query({
 export const setModuleSetting = mutation({
   args: { moduleKey: v.string(), settingKey: v.string(), value: v.any() },
   handler: async (ctx, args) => {
+    if (args.moduleKey === "orders") {
+      if (args.settingKey === "shippingMethods") {
+        const res = validateShippingMethods(args.value);
+        if (!res.success) {
+          throw new Error(res.error);
+        }
+      } else if (args.settingKey === "paymentMethods") {
+        const res = validatePaymentMethods(args.value);
+        if (!res.success) {
+          throw new Error(res.error);
+        }
+      } else if (args.settingKey === "orderStatuses") {
+        const res = validateOrderStatuses(args.value);
+        if (!res.success) {
+          throw new Error(res.error);
+        }
+      } else if (args.settingKey === "addressFormat") {
+        const format = String(args.value);
+        if (!["text", "2-level", "3-level"].includes(format)) {
+          throw new Error("Định dạng địa chỉ không hợp lệ.");
+        }
+      }
+    }
+
     const existing = await ctx.db
       .query("moduleSettings")
       .withIndex("by_module_setting", (q) =>
@@ -892,47 +1013,6 @@ export const setModuleSetting = mutation({
 
     if (args.moduleKey === "menus" && args.settingKey === "maxDepth") {
       await normalizeMenuItemsToMaxLevel(ctx, args.value);
-    }
-
-    if (args.moduleKey === "products" && args.settingKey === "defaultImageAspectRatio") {
-      const cleanupSetting = await ctx.db
-        .query("moduleSettings")
-        .withIndex("by_module_setting", (q) =>
-          q.eq("moduleKey", "products").eq("settingKey", "productFrameCleanupOnArChange")
-        )
-        .unique();
-      const shouldCleanup = cleanupSetting?.value !== false;
-      if (shouldCleanup && typeof args.value === "string") {
-        await cleanupProductFramesByAspectRatio(ctx, args.value);
-      }
-
-      const activeFrameSetting = await ctx.db
-        .query("moduleSettings")
-        .withIndex("by_module_setting", (q) =>
-          q.eq("moduleKey", "products").eq("settingKey", "activeProductFrameId")
-        )
-        .unique();
-      const activeFrameId = typeof activeFrameSetting?.value === "string"
-        ? (activeFrameSetting.value as Id<"productImageFrames">)
-        : null;
-      if (activeFrameSetting && activeFrameId) {
-        const activeFrame = await ctx.db.get(activeFrameId);
-        if (!activeFrame || activeFrame.aspectRatio !== args.value) {
-          await ctx.db.patch(activeFrameSetting._id, { value: null });
-        }
-      }
-    }
-
-    if (args.moduleKey === "products" && args.settingKey === "enableProductFrames" && args.value === false) {
-      const activeFrameSetting = await ctx.db
-        .query("moduleSettings")
-        .withIndex("by_module_setting", (q) =>
-          q.eq("moduleKey", "products").eq("settingKey", "activeProductFrameId")
-        )
-        .unique();
-      if (activeFrameSetting) {
-        await ctx.db.patch(activeFrameSetting._id, { value: null });
-      }
     }
 
     if (args.moduleKey === "settings" && args.settingKey === "site_brand_mode") {

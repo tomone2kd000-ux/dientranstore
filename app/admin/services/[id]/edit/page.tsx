@@ -21,6 +21,8 @@ import {
   type BookingSlotTemplateByWeekday,
 } from '@/lib/bookings/slotTemplate';
 import { HomeComponentStickyFooter } from '@/app/admin/home-components/_shared/components/HomeComponentStickyFooter';
+import { AiEntityImportDialog, type AiEntityImportPayload } from '@/app/admin/components/AiEntityImportDialog';
+import { CategoryTagsInput } from '@/app/admin/components/AdditionalCategoriesSelect';
 
 const MODULE_KEY = 'services';
 
@@ -76,9 +78,11 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
   const router = useRouter();
 
   const serviceData = useQuery(api.services.getById, { id: id as Id<"services"> });
+  const additionalCategoryIdsData = useQuery(api.services.getAdditionalCategoryIds, { id: id as Id<"services"> });
   const categoriesData = useQuery(api.serviceCategories.listAll, {});
   const updateService = useMutation(api.services.update);
   const fieldsData = useQuery(api.admin.modules.listEnabledModuleFields, { moduleKey: MODULE_KEY });
+  const settingsData = useQuery(api.admin.modules.listModuleSettings, { moduleKey: MODULE_KEY });
   const bookingsModule = useQuery(api.admin.modules.getModuleByKey, { key: 'bookings' });
   const isBookingsModuleEnabled = bookingsModule?.enabled ?? false;
 
@@ -94,6 +98,7 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
   const [thumbnail, setThumbnail] = useState<string | undefined>();
   const [thumbnailStorageId, setThumbnailStorageId] = useState<Id<'_storage'> | undefined>();
   const [categoryId, setCategoryId] = useState('');
+  const [additionalCategoryIds, setAdditionalCategoryIds] = useState<string[]>([]);
   const [price, setPrice] = useState<number | undefined>();
   const [duration, setDuration] = useState('');
   const [bookingEnabled, setBookingEnabled] = useState(true);
@@ -109,10 +114,16 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('saved');
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [editorResetKey] = useState(0);
+  const [editorResetKey, setEditorResetKey] = useState(0);
   const [snapshotVersion, setSnapshotVersion] = useState(0);
+  const selectedCategorySlug = useMemo(
+    () => categoriesData?.find((category) => category._id === categoryId)?.slug,
+    [categoriesData, categoryId]
+  );
+  const multiCategoryEnabled = Boolean(settingsData?.find(s => s.settingKey === 'enableMultipleCategories')?.value);
   const initialSnapshotRef = useRef<{
     categoryId: string;
+    additionalCategoryIds: string[];
     content: string;
     renderType: 'content' | 'markdown' | 'html';
     markdownRender: string;
@@ -159,15 +170,49 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
   }), [activeSlotScope, bookingSlotTemplateByWeekday, bookingSlotTemplateDefault]);
   const activeScopeSet = useMemo(() => new Set(activeScopeSlots), [activeScopeSlots]);
 
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setTitle(val);
-    const generatedSlug = val.toLowerCase()
+  const generateSlugFromTitle = (value: string) => value.toLowerCase()
       .normalize("NFD").replaceAll(/[\u0300-\u036F]/g, "")
       .replaceAll(/[đĐ]/g, "d")
       .replaceAll(/[^a-z0-9\s]/g, '')
       .replaceAll(/\s+/g, '-');
-    setSlug(generatedSlug);
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTitle(val);
+    setSlug(generateSlugFromTitle(val));
+  };
+
+  const handleApplyAiService = (item: AiEntityImportPayload) => {
+    const nextTitle = item.title?.trim() || item.name?.trim() || '';
+    if (!nextTitle) {return;}
+
+    setTitle(nextTitle);
+    setSlug(item.slug?.trim() || generateSlugFromTitle(nextTitle));
+    const nextContent = item.content || item.description || item.htmlRender || item.markdownRender || '';
+    setContent(nextContent);
+    if (item.content) {
+      setRenderType('content');
+      setHtmlRender(item.htmlRender || '');
+      setMarkdownRender(item.markdownRender || '');
+    } else if (item.htmlRender) {
+      setRenderType('html');
+      setHtmlRender(item.htmlRender);
+      setMarkdownRender(item.markdownRender || '');
+    } else if (item.markdownRender) {
+      setRenderType('markdown');
+      setMarkdownRender(item.markdownRender);
+      setHtmlRender('');
+    }
+    setExcerpt(item.excerpt || item.description || truncateText(stripHtml(nextContent), 180));
+    setMetaTitle(item.metaTitle || truncateText(nextTitle, 60));
+    setMetaDescription(item.metaDescription || truncateText(stripHtml(item.excerpt || nextContent), 160));
+    if (item.thumbnail) {
+      setThumbnail(item.thumbnail);
+      setThumbnailStorageId(undefined);
+    }
+    if (typeof item.price === 'number') {setPrice(item.price);}
+    if (item.duration) {setDuration(item.duration);}
+    setEditorResetKey((prev) => prev + 1);
   };
 
   const normalizedBookingSlotTemplateDefault = useMemo(
@@ -181,6 +226,7 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
 
   const currentSnapshot = useMemo(() => ({
     categoryId,
+    additionalCategoryIds,
     content: normalizedContent,
     renderType,
     markdownRender: markdownRender.trim(),
@@ -200,10 +246,11 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
     slug: slug.trim(),
     status,
     thumbnail: thumbnail ?? '',
-    thumbnailStorageId,
+    thumbnailStorageId: thumbnail ? (thumbnailStorageId ?? null) : null,
     title: title.trim(),
   }), [
     categoryId,
+    additionalCategoryIds,
     normalizedContent,
     renderType,
     markdownRender,
@@ -252,7 +299,8 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
       const allowedRenderTypes = new Set<'content' | 'markdown' | 'html'>(['content']);
       if (hasMarkdownRender) {allowedRenderTypes.add('markdown');}
       if (hasHtmlRender) {allowedRenderTypes.add('html');}
-      setRenderType(allowedRenderTypes.has(nextRenderType) ? nextRenderType : 'content');
+      const normalizedRenderType = allowedRenderTypes.has(nextRenderType) ? nextRenderType : 'content';
+      setRenderType(normalizedRenderType);
       setMarkdownRender(serviceData.markdownRender ?? '');
       setHtmlRender(serviceData.htmlRender ?? '');
       setExcerpt(serviceData.excerpt ?? '');
@@ -261,6 +309,7 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
       setThumbnail(serviceData.thumbnail);
       setThumbnailStorageId((serviceData as { thumbnailStorageId?: Id<'_storage'> }).thumbnailStorageId);
       setCategoryId(serviceData.categoryId);
+      setAdditionalCategoryIds(additionalCategoryIdsData ?? []);
       setPrice(serviceData.price);
       setDuration(serviceData.duration ?? '');
       setBookingEnabled(serviceData.bookingEnabled ?? false);
@@ -273,8 +322,9 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
       setStatus(serviceData.status);
       initialSnapshotRef.current = {
         categoryId: serviceData.categoryId,
+        additionalCategoryIds: additionalCategoryIdsData ?? [],
         content: normalizeRichText(serviceData.content),
-        renderType: serviceData.renderType ?? 'content',
+        renderType: normalizedRenderType,
         markdownRender: (serviceData.markdownRender ?? '').trim(),
         htmlRender: (serviceData.htmlRender ?? '').trim(),
         duration: (serviceData.duration ?? '').trim(),
@@ -292,12 +342,14 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
         slug: serviceData.slug.trim(),
         status: serviceData.status,
         thumbnail: serviceData.thumbnail ?? '',
-        thumbnailStorageId: (serviceData as { thumbnailStorageId?: Id<'_storage'> }).thumbnailStorageId,
+        thumbnailStorageId: serviceData.thumbnail
+          ? ((serviceData as { thumbnailStorageId?: Id<'_storage'> }).thumbnailStorageId ?? null)
+          : null,
         title: serviceData.title.trim(),
       };
       setSnapshotVersion((prev) => prev + 1);
     }
-  }, [serviceData, hasMarkdownRender, hasHtmlRender]);
+  }, [serviceData, additionalCategoryIdsData, hasMarkdownRender, hasHtmlRender]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -320,6 +372,9 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
       const resolvedBookingEnabled = isBookingsModuleEnabled ? bookingEnabled : false;
       await updateService({
         categoryId: categoryId as Id<"serviceCategories">,
+        additionalCategoryIds: multiCategoryEnabled
+          ? additionalCategoryIds.filter((category) => category !== categoryId) as Id<"serviceCategories">[]
+          : undefined,
         content,
         renderType,
         markdownRender: markdownRender.trim() || undefined,
@@ -343,7 +398,7 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
         price,
         slug: slug.trim(),
         status,
-        thumbnail,
+        thumbnail: thumbnail ?? '',
         thumbnailStorageId: thumbnail ? (thumbnailStorageId ?? null) : null,
         title: title.trim(),
       });
@@ -662,7 +717,7 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
                     {metaTitle.trim() || title || 'Tên dịch vụ'}
                   </div>
                   <div className="text-emerald-600 text-xs">
-                    /services/{slug || 'dich-vu'}
+                    /{selectedCategorySlug || 'chua-phan-loai'}/{slug || 'dich-vu'}
                   </div>
                   <div className="text-slate-600 text-xs mt-1 line-clamp-2">
                     {metaDescription.trim() || excerpt || 'Mô tả ngắn sẽ hiển thị tại đây.'}
@@ -691,7 +746,21 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
               </div>
               <div className="space-y-2">
                 <Label>Danh mục</Label>
-                <div className="flex gap-2">
+                {multiCategoryEnabled ? (
+                  <>
+                  <CategoryTagsInput
+                    categories={categoriesData}
+                    value={[categoryId, ...additionalCategoryIds].filter(Boolean)}
+                    onQuickCreate={() =>{  setShowCategoryModal(true); }}
+                    onChange={(ids) => {
+                      setCategoryId(ids[0] ?? '');
+                      setAdditionalCategoryIds(ids.slice(1));
+                    }}
+                  />
+                  <p className="text-xs text-slate-500">Thẻ đầu tiên là danh mục chính/canonical, các thẻ sau là danh mục phụ.</p>
+                  </>
+                ) : (
+                  <div className="flex gap-2">
                   <select 
                     value={categoryId}
                     onChange={(e) =>{  setCategoryId(e.target.value); }}
@@ -710,7 +779,8 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
                   >
                     <Plus size={16} />
                   </Button>
-                </div>
+                  </div>
+                )}
               </div>
               {enabledFields.has('featured') && (
                 <div className="flex items-center gap-2">
@@ -786,10 +856,11 @@ export default function ServiceEditPage({ params }: { params: Promise<{ id: stri
         <>
           <Button type="button" variant="ghost" onClick={() =>{  router.push('/admin/services'); }}>Hủy bỏ</Button>
           <div className="flex gap-2">
+            <AiEntityImportDialog kind="service" enabledFields={enabledFields} onApply={handleApplyAiService} />
             <Button
               type="button"
               variant="outline"
-              onClick={() => window.open(`/services/${slug}`, '_blank')}
+              onClick={() => window.open(`/${selectedCategorySlug || 'chua-phan-loai'}/${slug}`, '_blank')}
               className="gap-2"
               disabled={!slug.trim()}
             >

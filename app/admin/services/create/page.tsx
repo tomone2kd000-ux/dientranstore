@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import { Briefcase, Plus } from 'lucide-react';
+import { Briefcase, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAdminMutationErrorMessage } from '@/app/admin/lib/mutation-error';
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from '../../components/ui';
@@ -18,6 +18,8 @@ import {
   normalizeSlotTemplateByWeekday,
 } from '@/lib/bookings/slotTemplate';
 import { HomeComponentStickyFooter } from '@/app/admin/home-components/_shared/components/HomeComponentStickyFooter';
+import { AiEntityImportDialog, type AiEntityImportPayload } from '@/app/admin/components/AiEntityImportDialog';
+import { CategoryTagsInput } from '@/app/admin/components/AdditionalCategoriesSelect';
 
 const MODULE_KEY = 'services';
 
@@ -42,6 +44,7 @@ export default function ServiceCreatePage() {
   const [thumbnail, setThumbnail] = useState<string | undefined>();
   const [thumbnailStorageId, setThumbnailStorageId] = useState<Id<'_storage'> | undefined>();
   const [categoryId, setCategoryId] = useState('');
+  const [additionalCategoryIds, setAdditionalCategoryIds] = useState<string[]>([]);
   const [price, setPrice] = useState<number | undefined>();
   const [duration, setDuration] = useState('');
   const [bookingEnabled, setBookingEnabled] = useState(true);
@@ -54,6 +57,7 @@ export default function ServiceCreatePage() {
   const [status, setStatus] = useState<'Draft' | 'Published'>('Draft');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editorResetKey, setEditorResetKey] = useState(0);
 
   useEffect(() => {
     if (settingsData) {
@@ -70,19 +74,58 @@ export default function ServiceCreatePage() {
     return fields;
   }, [fieldsData]);
 
+  const categoryData = categoriesData?.find((c) => c._id === categoryId);
+  const categorySlugPreview = categoryData?.slug || 'chua-phan-loai';
+
+
   const hasMarkdownRender = enabledFields.has('markdownRender');
   const hasHtmlRender = enabledFields.has('htmlRender');
   const showAdvancedRenderCard = hasMarkdownRender || hasHtmlRender;
+  const multiCategoryEnabled = Boolean(settingsData?.find(s => s.settingKey === 'enableMultipleCategories')?.value);
 
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setTitle(val);
-    const generatedSlug = val.toLowerCase()
+  const generateSlugFromTitle = (value: string) => value.toLowerCase()
       .normalize("NFD").replaceAll(/[\u0300-\u036F]/g, "")
       .replaceAll(/[đĐ]/g, "d")
       .replaceAll(/[^a-z0-9\s]/g, '')
       .replaceAll(/\s+/g, '-');
-    setSlug(generatedSlug);
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTitle(val);
+    setSlug(generateSlugFromTitle(val));
+  };
+
+  const handleApplyAiService = (item: AiEntityImportPayload) => {
+    const nextTitle = item.title?.trim() || item.name?.trim() || '';
+    if (!nextTitle) {return;}
+
+    setTitle(nextTitle);
+    setSlug(item.slug?.trim() || generateSlugFromTitle(nextTitle));
+    const nextContent = item.content || item.description || item.htmlRender || item.markdownRender || '';
+    setContent(nextContent);
+    if (item.content) {
+      setRenderType('content');
+      setHtmlRender(item.htmlRender || '');
+      setMarkdownRender(item.markdownRender || '');
+    } else if (item.htmlRender) {
+      setRenderType('html');
+      setHtmlRender(item.htmlRender);
+      setMarkdownRender(item.markdownRender || '');
+    } else if (item.markdownRender) {
+      setRenderType('markdown');
+      setMarkdownRender(item.markdownRender);
+      setHtmlRender('');
+    }
+    setExcerpt(item.excerpt || item.description || truncateText(stripHtml(nextContent), 180));
+    setMetaTitle(item.metaTitle || truncateText(nextTitle, 60));
+    setMetaDescription(item.metaDescription || truncateText(stripHtml(item.excerpt || nextContent), 160));
+    if (item.thumbnail) {
+      setThumbnail(item.thumbnail);
+      setThumbnailStorageId(undefined);
+    }
+    if (typeof item.price === 'number') {setPrice(item.price);}
+    if (item.duration) {setDuration(item.duration);}
+    setEditorResetKey((prev) => prev + 1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,6 +139,9 @@ export default function ServiceCreatePage() {
       const resolvedBookingEnabled = isBookingsModuleEnabled ? bookingEnabled : false;
       await createService({
         categoryId: categoryId as Id<"serviceCategories">,
+        additionalCategoryIds: multiCategoryEnabled
+          ? additionalCategoryIds.filter((id) => id !== categoryId) as Id<"serviceCategories">[]
+          : undefined,
         content,
         renderType,
         markdownRender: markdownRender.trim() || undefined,
@@ -171,7 +217,7 @@ export default function ServiceCreatePage() {
                )}
               <div className="space-y-2">
                  <Label>Nội dung</Label>
-                 <LexicalEditor onChange={setContent} />
+                 <LexicalEditor onChange={setContent} initialContent={content} resetKey={editorResetKey} />
               </div>
             </CardContent>
           </Card>
@@ -310,7 +356,7 @@ export default function ServiceCreatePage() {
                     {metaTitle.trim() || title || 'Tên dịch vụ'}
                   </div>
                   <div className="text-emerald-600 text-xs">
-                    /services/{slug || 'dich-vu'}
+                    /{categorySlugPreview}/{slug || 'dich-vu'}
                   </div>
                   <div className="text-slate-600 text-xs mt-1 line-clamp-2">
                     {metaDescription.trim() || excerpt || 'Mô tả ngắn sẽ hiển thị tại đây.'}
@@ -338,7 +384,21 @@ export default function ServiceCreatePage() {
               </div>
               <div className="space-y-2">
                 <Label>Danh mục <span className="text-red-500">*</span></Label>
-                <div className="flex gap-2">
+                {multiCategoryEnabled ? (
+                  <>
+                  <CategoryTagsInput
+                    categories={categoriesData}
+                    value={[categoryId, ...additionalCategoryIds].filter(Boolean)}
+                    onQuickCreate={() =>{  setShowCategoryModal(true); }}
+                    onChange={(ids) => {
+                      setCategoryId(ids[0] ?? '');
+                      setAdditionalCategoryIds(ids.slice(1));
+                    }}
+                  />
+                  <p className="text-xs text-slate-500">Thẻ đầu tiên là danh mục chính/canonical, các thẻ sau là danh mục phụ.</p>
+                  </>
+                ) : (
+                  <div className="flex gap-2">
                   <select 
                     value={categoryId} 
                     onChange={(e) =>{  setCategoryId(e.target.value); }}
@@ -359,7 +419,8 @@ export default function ServiceCreatePage() {
                   >
                     <Plus size={16} />
                   </Button>
-                </div>
+                  </div>
+                )}
               </div>
               {enabledFields.has('featured') && (
                 <div className="flex items-center gap-2">
@@ -432,7 +493,18 @@ export default function ServiceCreatePage() {
         onCancel={() =>{  router.push('/admin/services'); }}
         disableSave={isSubmitting}
         submitClassName="bg-teal-600 hover:bg-teal-500"
-      />
+      >
+        <>
+          <Button type="button" variant="ghost" onClick={() =>{  router.push('/admin/services'); }}>Hủy bỏ</Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <AiEntityImportDialog kind="service" enabledFields={enabledFields} onApply={handleApplyAiService} />
+            <Button type="submit" variant="accent" disabled={isSubmitting || !title.trim() || !categoryId} className="bg-teal-600 hover:bg-teal-500">
+              {isSubmitting && <Loader2 size={16} className="animate-spin mr-2" />}
+              Đăng
+            </Button>
+          </div>
+        </>
+      </HomeComponentStickyFooter>
     </form>
     </>
   );

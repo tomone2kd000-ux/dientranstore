@@ -12,7 +12,6 @@ import {
   generateServiceSchema,
 } from '@/components/seo/JsonLd';
 import { buildDetailPath } from '@/lib/ia/route-mode';
-import { getIASettings } from '@/lib/ia/settings';
 
 interface Props {
   params: Promise<{ categorySlug: string; recordSlug: string }>;
@@ -22,8 +21,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { categorySlug, recordSlug } = await params;
   const client = getConvexClient();
-  const [iaSettings, site, seo, contact, social, resolvedDetail] = await Promise.all([
-    getIASettings(),
+  const [site, seo, contact, social, resolvedDetail] = await Promise.all([
     getSiteSettings(),
     getSEOSettings(),
     getContactSettings(),
@@ -48,10 +46,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const canonicalPath = buildDetailPath({
-    categorySlug,
-    mode: iaSettings.routeMode,
+    categorySlug: resolvedDetail.categorySlug,
+    mode: 'unified',
     moduleKey: resolvedDetail.moduleKey,
-    recordSlug,
+    recordSlug: resolvedDetail.recordSlug,
   });
 
   if (resolvedDetail.moduleKey === 'products') {
@@ -165,8 +163,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function UnifiedDetailLayout({ params, children }: Props) {
   const { categorySlug, recordSlug } = await params;
   const client = getConvexClient();
-  const [iaSettings, site, seo, resolvedDetail] = await Promise.all([
-    getIASettings(),
+  const [site, seo, resolvedDetail] = await Promise.all([
     getSiteSettings(),
     getSEOSettings(),
     client.query(api.ia.resolveUnifiedDetail, { categorySlug, recordSlug }),
@@ -176,13 +173,15 @@ export default async function UnifiedDetailLayout({ params, children }: Props) {
     notFound();
   }
 
-  if (iaSettings.routeMode === 'namespace') {
-    permanentRedirect(buildDetailPath({
-      categorySlug,
-      mode: iaSettings.routeMode,
-      moduleKey: resolvedDetail.moduleKey,
-      recordSlug,
-    }));
+  const canonicalPath = buildDetailPath({
+    categorySlug: resolvedDetail.categorySlug,
+    mode: 'unified',
+    moduleKey: resolvedDetail.moduleKey,
+    recordSlug: resolvedDetail.recordSlug,
+  });
+
+  if (`/${categorySlug}/${recordSlug}` !== canonicalPath) {
+    permanentRedirect(canonicalPath);
   }
 
   const baseUrl = (site.site_url || process.env.NEXT_PUBLIC_SITE_URL) ?? '';
@@ -195,7 +194,7 @@ export default async function UnifiedDetailLayout({ params, children }: Props) {
     ]);
     if (!product) {return children;}
 
-    const productUrl = `${baseUrl}/${category?.slug ?? categorySlug}/${product.slug}`;
+    const productUrl = `${baseUrl}${canonicalPath}`;
     const image = (product.image ?? (product.images && product.images[0])) ?? seo.seo_og_image;
     const productImages = product.images && product.images.length > 0
       ? product.images
@@ -229,7 +228,7 @@ export default async function UnifiedDetailLayout({ params, children }: Props) {
 
     const breadcrumbSchema = generateBreadcrumbSchema([
       { name: 'Trang chủ', url: baseUrl },
-      { name: category?.name ?? 'Sản phẩm', url: `${baseUrl}/${category?.slug ?? categorySlug}` },
+      { name: category?.name ?? 'Sản phẩm', url: `${baseUrl}/${resolvedDetail.categorySlug}` },
       { name: product.name, url: productUrl },
     ]);
 
@@ -249,7 +248,7 @@ export default async function UnifiedDetailLayout({ params, children }: Props) {
     ]);
     if (!service) {return children;}
 
-    const serviceUrl = `${baseUrl}/${category?.slug ?? categorySlug}/${service.slug}`;
+    const serviceUrl = `${baseUrl}${canonicalPath}`;
     const image = service.thumbnail ?? seo.seo_og_image;
     const ratingSummary = await client.query(api.comments.getRatingSummary, {
       targetId: service._id,
@@ -271,7 +270,7 @@ export default async function UnifiedDetailLayout({ params, children }: Props) {
 
     const breadcrumbSchema = generateBreadcrumbSchema([
       { name: 'Trang chủ', url: baseUrl },
-      { name: category?.name ?? 'Dịch vụ', url: `${baseUrl}/${category?.slug ?? categorySlug}` },
+      { name: category?.name ?? 'Dịch vụ', url: `${baseUrl}/${resolvedDetail.categorySlug}` },
       { name: service.title, url: serviceUrl },
     ]);
 
@@ -288,7 +287,7 @@ export default async function UnifiedDetailLayout({ params, children }: Props) {
   if (!post) {return children;}
 
   const category = await client.query(api.postCategories.getById, { id: post.categoryId });
-  const postUrl = `${baseUrl}/${category?.slug ?? categorySlug}/${post.slug}`;
+  const postUrl = `${baseUrl}${canonicalPath}`;
   const image = post.thumbnail ?? seo.seo_og_image;
   const articleSchema = generateArticleSchema({
     description: (post.metaDescription ?? post.excerpt) ?? seo.seo_description,
@@ -302,7 +301,7 @@ export default async function UnifiedDetailLayout({ params, children }: Props) {
 
   const breadcrumbSchema = generateBreadcrumbSchema([
     { name: 'Trang chủ', url: baseUrl },
-    { name: category?.name ?? 'Bài viết', url: `${baseUrl}/${category?.slug ?? categorySlug}` },
+    { name: category?.name ?? 'Bài viết', url: `${baseUrl}/${resolvedDetail.categorySlug}` },
     { name: post.title, url: postUrl },
   ]);
 

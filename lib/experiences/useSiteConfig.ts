@@ -11,7 +11,7 @@ type SearchLayoutStyle = 'search-only' | 'with-filters' | 'advanced';
 type ResultsDisplayStyle = 'grid' | 'list';
 
 type PostsListConfig = {
-  layoutStyle: 'grid' | 'list' | 'masonry';
+  layoutStyle: 'fullwidth' | 'sidebar' | 'magazine';
   filterPosition: FilterPosition;
   paginationType: PaginationType;
   showSearch: boolean;
@@ -26,6 +26,15 @@ type SearchFilterConfig = {
   showFilters: boolean;
   showSorting: boolean;
   showResultCount: boolean;
+  
+  // Cấu hình sản phẩm (đọc từ products_list_ui pattern)
+  showWishlistButton: boolean;
+  showAddToCartButton: boolean;
+  showBuyNowButton: boolean;
+  showPromotionBadge: boolean;
+  enableQuickAddVariant: boolean;
+  cornerRadius: 'none' | 'sm' | 'lg';
+  cartButtonsLayout?: 'stack' | 'grid-2';
 };
 
 type PostDetailLayoutStyle = 'classic' | 'modern' | 'minimal';
@@ -73,11 +82,14 @@ export function usePostsListConfig(): PostsListConfig {
   const experienceSetting = useQuery(api.settings.getByKey, { key: 'posts_list_ui' });
   
   return useMemo(() => {
-    const raw = experienceSetting?.value as Partial<PostsListConfig & { showPagination?: boolean }> | undefined;
+    const raw = experienceSetting?.value as Partial<PostsListConfig> | undefined;
+    const layoutStyle = raw?.layoutStyle === 'sidebar' || raw?.layoutStyle === 'magazine' || raw?.layoutStyle === 'fullwidth'
+      ? raw.layoutStyle
+      : 'fullwidth';
     return {
-      layoutStyle: raw?.layoutStyle ?? 'grid',
+      layoutStyle,
       filterPosition: raw?.filterPosition ?? 'sidebar',
-      paginationType: normalizePaginationType(raw?.paginationType ?? raw?.showPagination),
+      paginationType: normalizePaginationType(raw?.paginationType),
       showSearch: raw?.showSearch ?? true,
       showCategories: raw?.showCategories ?? true,
       hideEmptyCategories: raw?.hideEmptyCategories ?? true,
@@ -92,7 +104,14 @@ export function useSearchFilterConfig(): SearchFilterConfig {
   return useMemo(() => {
     const raw = experienceSetting?.value as {
       layoutStyle?: SearchLayoutStyle;
-      layouts?: Partial<Record<SearchLayoutStyle, Partial<Omit<SearchFilterConfig, 'layoutStyle'>>>>;
+      layouts?: Partial<Record<SearchLayoutStyle, Partial<Omit<SearchFilterConfig, 'layoutStyle' | 'showWishlistButton' | 'showAddToCartButton' | 'showBuyNowButton' | 'showPromotionBadge' | 'enableQuickAddVariant' | 'cornerRadius' | 'cartButtonsLayout'>>>>;
+      showWishlistButton?: boolean;
+      showAddToCartButton?: boolean;
+      showBuyNowButton?: boolean;
+      showPromotionBadge?: boolean;
+      enableQuickAddVariant?: boolean;
+      cornerRadius?: 'none' | 'sm' | 'lg';
+      cartButtonsLayout?: 'stack' | 'grid-2';
     } | undefined;
     const layoutStyle: SearchLayoutStyle = raw?.layoutStyle ?? 'with-filters';
     const defaultConfig = {
@@ -106,13 +125,19 @@ export function useSearchFilterConfig(): SearchFilterConfig {
       layoutStyle,
       ...defaultConfig,
       ...layoutConfig,
+      showWishlistButton: raw?.showWishlistButton ?? true,
+      showAddToCartButton: raw?.showAddToCartButton ?? true,
+      showBuyNowButton: raw?.showBuyNowButton ?? true,
+      showPromotionBadge: raw?.showPromotionBadge ?? true,
+      enableQuickAddVariant: raw?.enableQuickAddVariant ?? true,
+      cornerRadius: raw?.cornerRadius ?? 'lg',
+      cartButtonsLayout: raw?.cartButtonsLayout ?? 'stack',
     };
   }, [experienceSetting?.value]);
 }
 
 export function usePostsDetailConfig(): PostsDetailConfig {
   const experienceSetting = useQuery(api.settings.getByKey, { key: 'posts_detail_ui' });
-  const legacyStyleSetting = useQuery(api.settings.getByKey, { key: 'posts_detail_style' });
 
   return useMemo(() => {
     const raw = experienceSetting?.value as {
@@ -127,16 +152,22 @@ export function usePostsDetailConfig(): PostsDetailConfig {
       showThumbnail?: boolean;
       layouts?: Record<PostDetailLayoutStyle, Partial<PostDetailLayoutConfig>>;
     } | undefined;
-    const legacyStyle = legacyStyleSetting?.value as PostDetailLayoutStyle | undefined;
-    const layoutStyle = raw?.layoutStyle ?? legacyStyle ?? 'classic';
-    const legacyShared = raw?.layouts?.classic ?? raw?.layouts?.modern ?? raw?.layouts?.minimal ?? {};
+    const layoutStyle = raw?.layoutStyle ?? 'classic';
+    const layoutConfig = raw?.layouts?.[layoutStyle] ?? {};
     return {
       layoutStyle,
       ...DEFAULT_POST_DETAIL_CONFIG,
-      ...legacyShared,
-      ...raw,
+      ...layoutConfig,
+      showAuthor: raw?.showAuthor ?? layoutConfig.showAuthor ?? DEFAULT_POST_DETAIL_CONFIG.showAuthor,
+      showShare: raw?.showShare ?? layoutConfig.showShare ?? DEFAULT_POST_DETAIL_CONFIG.showShare,
+      showComments: raw?.showComments ?? layoutConfig.showComments ?? DEFAULT_POST_DETAIL_CONFIG.showComments,
+      showCommentLikes: raw?.showCommentLikes ?? layoutConfig.showCommentLikes ?? DEFAULT_POST_DETAIL_CONFIG.showCommentLikes,
+      showCommentReplies: raw?.showCommentReplies ?? layoutConfig.showCommentReplies ?? DEFAULT_POST_DETAIL_CONFIG.showCommentReplies,
+      showRelated: raw?.showRelated ?? layoutConfig.showRelated ?? DEFAULT_POST_DETAIL_CONFIG.showRelated,
+      showTags: raw?.showTags ?? layoutConfig.showTags ?? DEFAULT_POST_DETAIL_CONFIG.showTags,
+      showThumbnail: raw?.showThumbnail ?? layoutConfig.showThumbnail ?? DEFAULT_POST_DETAIL_CONFIG.showThumbnail,
     };
-  }, [experienceSetting?.value, legacyStyleSetting?.value]);
+  }, [experienceSetting?.value]);
 }
 
 export function useBookingConfig(): BookingExperienceConfig {
@@ -155,6 +186,7 @@ export function useBookingConfig(): BookingExperienceConfig {
 type ProductsListConfig = {
   layoutStyle: 'grid' | 'sidebar' | 'list';
   paginationType: PaginationType;
+  cornerRadius: 'none' | 'sm' | 'lg';
   showSearch: boolean;
   showCategories: boolean;
   hideEmptyCategories: boolean;
@@ -164,6 +196,9 @@ type ProductsListConfig = {
   showBuyNowButton: boolean;
   showPromotionBadge: boolean;
   enableQuickAddVariant: boolean;
+  cartButtonsLayout?: 'stack' | 'grid-2';
+  priceFilterMode: 'disabled' | 'custom' | 'smart_dropdown' | 'slider';
+  isLoading: boolean;
 };
 
 export function useProductsListConfig(): ProductsListConfig {
@@ -174,10 +209,9 @@ export function useProductsListConfig(): ProductsListConfig {
   
   return useMemo(() => {
     const raw = experienceSetting?.value as {
-      layoutStyle?: ProductsListConfig['layoutStyle'] | 'masonry';
-      layouts?: Record<string, Partial<Omit<ProductsListConfig, 'layoutStyle'> & { showPagination?: boolean }>>;
-      paginationType?: string | boolean;
-      showPagination?: boolean;
+      layoutStyle?: ProductsListConfig['layoutStyle'];
+      layouts?: Partial<Record<ProductsListConfig['layoutStyle'], Partial<Omit<ProductsListConfig, 'layoutStyle'>>>>;
+      paginationType?: PaginationType;
       showSearch?: boolean;
       showCategories?: boolean;
       hideEmptyCategories?: boolean;
@@ -187,13 +221,13 @@ export function useProductsListConfig(): ProductsListConfig {
       showBuyNowButton?: boolean;
       showPromotionBadge?: boolean;
       enableQuickAddVariant?: boolean;
+      cornerRadius?: ProductsListConfig['cornerRadius'];
+      cartButtonsLayout?: 'stack' | 'grid-2';
+      priceFilterMode?: 'disabled' | 'custom' | 'smart_dropdown' | 'slider';
     } | undefined;
 
-    const rawLayout = raw?.layoutStyle;
-    const layoutStyle: ProductsListConfig['layoutStyle'] = rawLayout === 'masonry' ? 'sidebar' : (rawLayout ?? 'grid');
-    const layoutConfig = layoutStyle === 'sidebar'
-      ? (raw?.layouts?.sidebar ?? raw?.layouts?.masonry)
-      : raw?.layouts?.[layoutStyle];
+    const layoutStyle: ProductsListConfig['layoutStyle'] = raw?.layoutStyle ?? 'grid';
+    const layoutConfig = raw?.layouts?.[layoutStyle];
     
     const configShowAddToCart = raw?.showAddToCartButton ?? true;
     const configShowBuyNow = raw?.showBuyNowButton ?? true;
@@ -201,9 +235,12 @@ export function useProductsListConfig(): ProductsListConfig {
     const wishlistEnabled = wishlistModule?.enabled ?? false;
     const promotionsEnabled = promotionsModule?.enabled ?? false;
 
+    const isLoading = experienceSetting === undefined || wishlistModule === undefined || promotionsModule === undefined;
+
     return {
       layoutStyle,
-      paginationType: normalizePaginationType(layoutConfig?.paginationType ?? raw?.paginationType ?? layoutConfig?.showPagination ?? raw?.showPagination),
+      paginationType: normalizePaginationType(layoutConfig?.paginationType ?? raw?.paginationType),
+      cornerRadius: raw?.cornerRadius ?? 'lg',
       showSearch: layoutConfig?.showSearch ?? raw?.showSearch ?? true,
       showCategories: layoutConfig?.showCategories ?? raw?.showCategories ?? true,
       hideEmptyCategories: raw?.hideEmptyCategories ?? true,
@@ -213,8 +250,11 @@ export function useProductsListConfig(): ProductsListConfig {
       showBuyNowButton: configShowBuyNow && ordersEnabled,
       showPromotionBadge: (raw?.showPromotionBadge ?? true) && promotionsEnabled,
       enableQuickAddVariant: (raw?.enableQuickAddVariant ?? true) && cartAvailable,
+      cartButtonsLayout: raw?.cartButtonsLayout ?? 'stack',
+      priceFilterMode: raw?.priceFilterMode ?? 'custom',
+      isLoading,
     };
-  }, [experienceSetting?.value, cartAvailable, ordersEnabled, wishlistModule?.enabled, promotionsModule?.enabled]);
+  }, [experienceSetting, cartAvailable, ordersEnabled, wishlistModule, promotionsModule]);
 }
 
 type WishlistConfig = {
@@ -233,14 +273,13 @@ export function useWishlistConfig(): WishlistConfig {
 
   return useMemo(() => {
     const raw = experienceSetting?.value as {
-      layoutStyle?: WishlistConfig['layoutStyle'] | 'masonry';
-      layouts?: Record<string, Partial<Omit<WishlistConfig, 'layoutStyle'>>>;
+      layoutStyle?: WishlistConfig['layoutStyle'];
+      layouts?: Partial<Record<WishlistConfig['layoutStyle'], Partial<Omit<WishlistConfig, 'layoutStyle'>>>>;
       showAddToCartButton?: boolean;
     } | undefined;
 
-    const rawLayout = raw?.layoutStyle;
-    const layoutStyle: WishlistConfig['layoutStyle'] = rawLayout === 'masonry' ? 'table' : (rawLayout ?? 'grid');
-    const layoutConfig = raw?.layouts?.[layoutStyle] ?? raw?.layouts?.masonry ?? {};
+    const layoutStyle: WishlistConfig['layoutStyle'] = raw?.layoutStyle ?? 'grid';
+    const layoutConfig = raw?.layouts?.[layoutStyle] ?? {};
     const showNote = layoutConfig.showNote ?? true;
     const showNotification = layoutConfig.showNotification ?? true;
     const configShowAddToCart = layoutConfig.showAddToCartButton ?? raw?.showAddToCartButton ?? true;
@@ -256,7 +295,7 @@ export function useWishlistConfig(): WishlistConfig {
 }
 
 type ServicesListConfig = {
-   layoutStyle: 'grid' | 'sidebar' | 'masonry';
+  layoutStyle: 'grid' | 'sidebar' | 'masonry';
   filterPosition: 'sidebar' | 'top' | 'none';
   paginationType: PaginationType;
   showSearch: boolean;
@@ -270,24 +309,22 @@ export function useServicesListConfig(): ServicesListConfig {
   
   return useMemo(() => {
     const raw = experienceSetting?.value as {
-       layoutStyle?: ServicesListConfig['layoutStyle'] | 'list';
-      layouts?: Record<string, Partial<Omit<ServicesListConfig, 'layoutStyle'> & { showPagination?: boolean }>>;
+      layoutStyle?: ServicesListConfig['layoutStyle'];
+      layouts?: Partial<Record<ServicesListConfig['layoutStyle'], Partial<Omit<ServicesListConfig, 'layoutStyle'>>>>;
       filterPosition?: FilterPosition;
-      paginationType?: string | boolean;
-      showPagination?: boolean;
+      paginationType?: PaginationType;
       showSearch?: boolean;
       showCategories?: boolean;
       hideEmptyCategories?: boolean;
       postsPerPage?: number;
     } | undefined;
 
-     const rawLayout = raw?.layoutStyle;
-     const layoutStyle: ServicesListConfig['layoutStyle'] = rawLayout === 'list' ? 'sidebar' : (rawLayout ?? 'grid');
+    const layoutStyle: ServicesListConfig['layoutStyle'] = raw?.layoutStyle ?? 'grid';
     const layoutConfig = raw?.layouts?.[layoutStyle];
     return {
       layoutStyle,
       filterPosition: layoutConfig?.filterPosition ?? raw?.filterPosition ?? 'sidebar',
-      paginationType: normalizePaginationType(layoutConfig?.paginationType ?? raw?.paginationType ?? layoutConfig?.showPagination ?? raw?.showPagination),
+      paginationType: normalizePaginationType(layoutConfig?.paginationType ?? raw?.paginationType),
       showSearch: layoutConfig?.showSearch ?? raw?.showSearch ?? true,
       showCategories: layoutConfig?.showCategories ?? raw?.showCategories ?? true,
       hideEmptyCategories: raw?.hideEmptyCategories ?? true,

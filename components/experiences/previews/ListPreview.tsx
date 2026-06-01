@@ -7,6 +7,7 @@ type ListLayoutStyle = 'fullwidth' | 'sidebar' | 'magazine' | 'grid' | 'list' | 
 type PreviewDevice = 'desktop' | 'tablet' | 'mobile';
 type PaginationType = 'pagination' | 'infiniteScroll';
 type ProductsListLayoutStyle = 'grid' | 'sidebar' | 'list';
+type ProductListCornerRadius = 'none' | 'sm' | 'lg';
 
 type PostsListPreviewProps = {
   layoutStyle: ListLayoutStyle;
@@ -643,6 +644,7 @@ type ProductsListPreviewProps = {
   paginationType?: PaginationType;
   showSearch?: boolean;
   showCategories?: boolean;
+  cornerRadius?: ProductListCornerRadius;
   brandColor?: string;
   secondaryColor?: string;
   colorMode?: ProductsListColorMode;
@@ -651,6 +653,14 @@ type ProductsListPreviewProps = {
   showAddToCartButton?: boolean;
   showBuyNowButton?: boolean;
   showPromotionBadge?: boolean;
+  cartButtonsLayout?: 'stack' | 'grid-2';
+  priceFilterMode?: 'disabled' | 'custom' | 'smart_dropdown' | 'slider';
+};
+
+const getProductListRadiusClass = (cornerRadius: ProductListCornerRadius) => {
+  if (cornerRadius === 'none') return 'rounded-none';
+  if (cornerRadius === 'sm') return 'rounded-md';
+  return 'rounded-xl';
 };
 
 const mockProducts = [
@@ -667,11 +677,17 @@ function PreviewMobileProductsFilters({
   showSearch,
   showCategories,
   tokens,
+  radiusClass,
+  priceFilterMode,
+  brandColor,
 }: {
   categories: string[];
   showSearch: boolean;
   showCategories: boolean;
   tokens: ReturnType<typeof getProductsListColors>;
+  radiusClass: string;
+  priceFilterMode?: 'disabled' | 'custom' | 'smart_dropdown' | 'slider';
+  brandColor?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -680,7 +696,7 @@ function PreviewMobileProductsFilters({
   }
 
   return (
-    <div className="mb-4 lg:hidden rounded-lg border p-3" style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}>
+    <div className={`mb-3 lg:hidden ${radiusClass} border p-3`} style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}>
       <button
         type="button"
         onClick={() => { setOpen((prev) => !prev); }}
@@ -738,6 +754,56 @@ function PreviewMobileProductsFilters({
             </div>
           )}
 
+          {priceFilterMode && priceFilterMode !== 'disabled' && (
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: tokens.metaText }}>Khoảng giá</p>
+              {priceFilterMode === 'custom' && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Từ"
+                    className="w-1/2 px-2 py-1 border rounded text-sm"
+                    style={{ borderColor: tokens.inputBorder, backgroundColor: tokens.inputBackground, color: tokens.inputText }}
+                    disabled
+                  />
+                  <input
+                    type="text"
+                    placeholder="Đến"
+                    className="w-1/2 px-2 py-1 border rounded text-sm"
+                    style={{ borderColor: tokens.inputBorder, backgroundColor: tokens.inputBackground, color: tokens.inputText }}
+                    disabled
+                  />
+                </div>
+              )}
+              {priceFilterMode === 'smart_dropdown' && (
+                <select
+                  className="w-full px-2 py-1 border rounded text-sm"
+                  style={{ borderColor: tokens.inputBorder, backgroundColor: tokens.inputBackground, color: tokens.inputText }}
+                  disabled
+                >
+                  <option>Tất cả khoảng giá</option>
+                  <option>Dưới 500kđ</option>
+                  <option>500kđ - 1Mđ</option>
+                  <option>1Mđ - 2Mđ</option>
+                  <option>Trên 2Mđ</option>
+                </select>
+              )}
+              {priceFilterMode === 'slider' && (
+                <div className="px-1 py-2">
+                  <div className="h-1 w-full bg-slate-200 rounded relative">
+                    <div className="absolute left-[20%] right-[30%] h-full bg-red-500 rounded" style={{ backgroundColor: brandColor }} />
+                    <div className="absolute left-[20%] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border bg-white" style={{ borderColor: brandColor }} />
+                    <div className="absolute right-[30%] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border bg-white" style={{ borderColor: brandColor }} />
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-400 mt-1.5">
+                    <span>100kđ</span>
+                    <span>3.5Mđ</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="mb-2 block text-xs font-medium uppercase tracking-wider" style={{ color: tokens.metaText }}>
               Sắp xếp
@@ -767,6 +833,7 @@ export function ProductsListPreview({
   paginationType = 'pagination',
   showSearch = true,
   showCategories = true,
+  cornerRadius = 'lg',
   brandColor = '#10b981',
   secondaryColor,
   colorMode = 'single',
@@ -775,6 +842,8 @@ export function ProductsListPreview({
   showAddToCartButton = true,
   showBuyNowButton = true,
   showPromotionBadge = true,
+  cartButtonsLayout = 'stack',
+  priceFilterMode = 'custom',
 }: ProductsListPreviewProps) {
   const categories = ['Tất cả', 'Điện thoại', 'Laptop', 'Tablet', 'Phụ kiện'];
   const isMobile = device === 'mobile';
@@ -782,10 +851,11 @@ export function ProductsListPreview({
   const visibleProducts = isMobile ? 2 : 4;
   const gridClass = isMobile ? 'grid-cols-1' : 'sm:grid-cols-2 lg:grid-cols-3';
   const tokens = getProductsListColors(brandColor, secondaryColor, colorMode);
+  const radiusClass = getProductListRadiusClass(cornerRadius);
 
   const ProductCard = ({ product }: { product: typeof mockProducts[0] }) => (
     <div
-      className="rounded-lg overflow-hidden border h-full flex flex-col group"
+      className={`${radiusClass} overflow-hidden border h-full flex flex-col group`}
       style={{ backgroundColor: tokens.cardBackground, borderColor: tokens.cardBorder }}
     >
       <div
@@ -848,7 +918,11 @@ export function ProductsListPreview({
           </div>
         </div>
         {(showAddToCartButton || showBuyNowButton) && (
-          <div className="mt-2.5 space-y-2">
+          <div className={
+            cartButtonsLayout === 'grid-2' && showAddToCartButton && showBuyNowButton
+              ? "mt-2.5 grid grid-cols-2 gap-2"
+              : "mt-2.5 space-y-2"
+          }>
             {showAddToCartButton && (
               <button
                 className="w-full py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
@@ -890,10 +964,13 @@ export function ProductsListPreview({
                   showSearch={showSearch}
                   showCategories={showCategories}
                   tokens={tokens}
+                  radiusClass={radiusClass}
+                  priceFilterMode={priceFilterMode}
+                  brandColor={brandColor}
                 />
               )}
               <div
-                className="hidden md:block rounded-lg border p-3"
+                className={`hidden md:block ${radiusClass} border p-3`}
                 style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}
               >
                 <div className="flex items-center gap-2">
@@ -980,10 +1057,13 @@ export function ProductsListPreview({
                   showSearch={showSearch}
                   showCategories={showCategories}
                   tokens={tokens}
+                  radiusClass={radiusClass}
+                  priceFilterMode={priceFilterMode}
+                  brandColor={brandColor}
                 />
               )}
               <div
-                className="hidden md:block rounded-lg border p-3 mb-4"
+                className={`hidden md:block ${radiusClass} border p-3 mb-3`}
                 style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}
               >
                 <div className="flex flex-col md:flex-row gap-3">
@@ -1045,7 +1125,7 @@ export function ProductsListPreview({
             {mockProducts.slice(0, visibleProducts).map((product) => (
               <div
                 key={product.id}
-                className="rounded-lg border overflow-hidden flex flex-col sm:flex-row gap-3 p-3"
+                className={`${radiusClass} border overflow-hidden flex flex-col sm:flex-row gap-3 p-3`}
                 style={{ backgroundColor: tokens.cardBackground, borderColor: tokens.cardBorder }}
               >
                 <div
@@ -1127,12 +1207,15 @@ export function ProductsListPreview({
               showSearch={showSearch}
               showCategories={showCategories}
               tokens={tokens}
+              radiusClass={radiusClass}
+              priceFilterMode={priceFilterMode}
+              brandColor={brandColor}
             />
           )}
           <aside className={`${sidebarWidth} hidden lg:block flex-shrink-0 ${sidebarOrder}`}>
             <div className="space-y-3">
               {showSearch && (
-                <div className="rounded-lg border p-3" style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}>
+                <div className={`${radiusClass} border p-3`} style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}>
                   <h3 className="font-semibold text-sm mb-2 flex items-center gap-2" style={{ color: tokens.bodyText }}>
                     <Search size={14} style={{ color: tokens.secondary }} />
                     Tìm kiếm
@@ -1152,7 +1235,7 @@ export function ProductsListPreview({
                 </div>
               )}
               {showCategories && (
-                <div className="rounded-lg border p-3" style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}>
+                <div className={`${radiusClass} border p-3`} style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}>
                   <h3 className="font-semibold text-sm mb-2 flex items-center gap-2" style={{ color: tokens.bodyText }}>
                     <FileText size={14} style={{ color: tokens.secondary }} />
                     Danh mục
@@ -1175,35 +1258,69 @@ export function ProductsListPreview({
                   </ul>
                 </div>
               )}
-              <div className="rounded-lg border p-3" style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}>
-                <h3 className="font-semibold text-sm mb-2" style={{ color: tokens.bodyText }}>Khoảng giá</h3>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Từ"
-                    className="w-1/2 px-2 py-1.5 border rounded text-sm placeholder:text-[var(--placeholder-color)]"
-                    style={{
-                      borderColor: tokens.inputBorder,
-                      backgroundColor: tokens.inputBackground,
-                      color: tokens.inputText,
-                      '--placeholder-color': tokens.inputPlaceholder,
-                    } as React.CSSProperties}
-                    disabled
-                  />
-                  <input
-                    type="text"
-                    placeholder="Đến"
-                    className="w-1/2 px-2 py-1.5 border rounded text-sm placeholder:text-[var(--placeholder-color)]"
-                    style={{
-                      borderColor: tokens.inputBorder,
-                      backgroundColor: tokens.inputBackground,
-                      color: tokens.inputText,
-                      '--placeholder-color': tokens.inputPlaceholder,
-                    } as React.CSSProperties}
-                    disabled
-                  />
+              {priceFilterMode !== 'disabled' && (
+                <div className={`${radiusClass} border p-3`} style={{ backgroundColor: tokens.filterBarBackground, borderColor: tokens.filterBarBorder }}>
+                  <h3 className="font-semibold text-sm mb-2" style={{ color: tokens.bodyText }}>Khoảng giá</h3>
+                  {priceFilterMode === 'custom' && (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Từ"
+                        className="w-1/2 px-2 py-1.5 border rounded text-sm placeholder:text-[var(--placeholder-color)]"
+                        style={{
+                          borderColor: tokens.inputBorder,
+                          backgroundColor: tokens.inputBackground,
+                          color: tokens.inputText,
+                          '--placeholder-color': tokens.inputPlaceholder,
+                        } as React.CSSProperties}
+                        disabled
+                      />
+                      <input
+                        type="text"
+                        placeholder="Đến"
+                        className="w-1/2 px-2 py-1.5 border rounded text-sm placeholder:text-[var(--placeholder-color)]"
+                        style={{
+                          borderColor: tokens.inputBorder,
+                          backgroundColor: tokens.inputBackground,
+                          color: tokens.inputText,
+                          '--placeholder-color': tokens.inputPlaceholder,
+                        } as React.CSSProperties}
+                        disabled
+                      />
+                    </div>
+                  )}
+                  {priceFilterMode === 'smart_dropdown' && (
+                    <select
+                      className="w-full px-2 py-1.5 border rounded text-sm"
+                      style={{
+                        borderColor: tokens.inputBorder,
+                        backgroundColor: tokens.inputBackground,
+                        color: tokens.inputText,
+                      }}
+                      disabled
+                    >
+                      <option>Tất cả khoảng giá</option>
+                      <option>Dưới 500.000đ</option>
+                      <option>500.000đ - 1.000.000đ</option>
+                      <option>1.000.000đ - 2.000.000đ</option>
+                      <option>Trên 2.000.000đ</option>
+                    </select>
+                  )}
+                  {priceFilterMode === 'slider' && (
+                    <div className="px-1 py-3">
+                      <div className="h-1 w-full bg-slate-200 rounded relative">
+                        <div className="absolute left-[20%] right-[30%] h-full bg-red-500 rounded" style={{ backgroundColor: brandColor }} />
+                        <div className="absolute left-[20%] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border shadow bg-white cursor-pointer" style={{ borderColor: brandColor }} />
+                        <div className="absolute right-[30%] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border shadow bg-white cursor-pointer" style={{ borderColor: brandColor }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-medium">
+                        <span>100kđ</span>
+                        <span>3.5Mđ</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
             </div>
           </aside>
 

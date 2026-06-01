@@ -66,7 +66,7 @@ export function VariantForm({
   const [quickAddColor, setQuickAddColor] = useState<Record<string, string>>({});
   const [quickAddOpen, setQuickAddOpen] = useState<Record<string, boolean>>({});
   const [isLoaded, setIsLoaded] = useState(false);
-  const generatedSku = useMemo(() => `VAR-${product._id.slice(-6)}-${Date.now()}`, [product._id]);
+  const [generatedSku] = useState(() => `VAR-${product._id.slice(-6)}-${Date.now()}`);
   const createOptionValue = useMutation(api.productOptionValues.create);
 
   const optionValuesByOption = useMemo(() => {
@@ -81,7 +81,6 @@ export function VariantForm({
   }, [optionValues]);
 
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
     if (variant && !isLoaded) {
       setSku(variant.sku);
       setBarcode(variant.barcode ?? '');
@@ -101,7 +100,6 @@ export function VariantForm({
     if (!variant && !isLoaded) {
       setIsLoaded(true);
     }
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, [variant, isLoaded]);
 
   const handleSubmit = async (e: React.FormEvent) => {

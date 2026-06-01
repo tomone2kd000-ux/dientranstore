@@ -6,7 +6,6 @@ import { getContactSettings, getSEOSettings, getSiteSettings, getSocialSettings 
 import { JsonLd, generateArticleSchema, generateBreadcrumbSchema } from '@/components/seo/JsonLd';
 import { buildSeoMetadata } from '@/lib/seo/metadata';
 import { buildDetailPath } from '@/lib/ia/route-mode';
-import { getIASettings } from '@/lib/ia/settings';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -38,13 +37,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     });
   }
   
-  const [post, site, seo, contact, social, iaSettings] = await Promise.all([
+  const [post, site, seo, contact, social] = await Promise.all([
     client.query(api.posts.getBySlug, { slug }),
     getSiteSettings(),
     getSEOSettings(),
     getContactSettings(),
     getSocialSettings(),
-    getIASettings(),
   ]);
 
   if (!post) {
@@ -64,7 +62,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const category = await client.query(api.postCategories.getById, { id: post.categoryId });
   const canonicalPath = buildDetailPath({
     categorySlug: category?.slug,
-    mode: iaSettings.routeMode,
+    mode: 'unified',
     moduleKey: 'posts',
     recordSlug: post.slug,
   });
@@ -92,30 +90,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PostLayout({ params, children }: Props) {
   const { slug } = await params;
   const client = getConvexClient();
-  const SCHEDULE_SKEW_MS = 30_000;
 
   const postsModule = await client.query(api.admin.modules.getModuleByKey, { key: 'posts' });
   if (postsModule?.enabled === false) {
     notFound();
   }
-  
-  const [post, site, seo, iaSettings] = await Promise.all([
+
+  const [post, site, seo] = await Promise.all([
     client.query(api.posts.getBySlug, { slug }),
     getSiteSettings(),
     getSEOSettings(),
-    getIASettings(),
   ]);
 
-  if (!post) {return children;}
-  if (post.status !== 'Published' || (post.publishedAt && post.publishedAt > Date.now() + SCHEDULE_SKEW_MS)) {
+  if (!post || post.status !== 'Published') {
     notFound();
   }
 
   const category = await client.query(api.postCategories.getById, { id: post.categoryId });
-  if (iaSettings.routeMode === 'unified' && category?.slug) {
+  if (category?.slug) {
     permanentRedirect(buildDetailPath({
       categorySlug: category.slug,
-      mode: iaSettings.routeMode,
+      mode: 'unified',
       moduleKey: 'posts',
       recordSlug: post.slug,
     }));
@@ -124,7 +119,7 @@ export default async function PostLayout({ params, children }: Props) {
   const baseUrl = (site.site_url || process.env.NEXT_PUBLIC_SITE_URL) ?? '';
   const postPath = buildDetailPath({
     categorySlug: category?.slug,
-    mode: iaSettings.routeMode,
+    mode: 'unified',
     moduleKey: 'posts',
     recordSlug: post.slug,
   });
@@ -145,7 +140,7 @@ export default async function PostLayout({ params, children }: Props) {
     { name: 'Trang chủ', url: baseUrl },
     {
       name: category?.name ?? 'Bài viết',
-      url: iaSettings.routeMode === 'unified' && category?.slug
+      url: category?.slug
         ? `${baseUrl}/${category.slug}`
         : `${baseUrl}/posts`,
     },

@@ -1,4 +1,4 @@
-import { api } from "@/convex/_generated/api";
+import { api } from "../convex/_generated/api";
 import { getConvexClient } from "./convex";
 
 export interface SiteSettings {
@@ -10,7 +10,6 @@ export interface SiteSettings {
   site_brand_primary: string;
   site_brand_secondary: string;
   site_brand_mode: 'single' | 'dual';
-  site_brand_color: string;
   site_timezone: string;
   site_language: string;
 }
@@ -85,17 +84,15 @@ const SETTINGS_KEYS = {
     "site_brand_primary",
     "site_brand_secondary",
     "site_brand_mode",
-    "site_brand_color",
     "site_timezone",
     "site_language",
   ],
 };
 
 const normalizeSiteSettings = (settings: Record<string, unknown>): SiteSettings => ({
-  site_brand_primary: (settings.site_brand_primary as string) || (settings.site_brand_color as string) || "#3b82f6",
+  site_brand_primary: (settings.site_brand_primary as string) || "#3b82f6",
   site_brand_secondary: (settings.site_brand_secondary as string) || "",
   site_brand_mode: settings.site_brand_mode === 'single' ? 'single' : 'dual',
-  site_brand_color: (settings.site_brand_primary as string) || (settings.site_brand_color as string) || "#3b82f6",
   site_favicon: (settings.site_favicon as string) || "",
   site_language: (settings.site_language as string) || "vi",
   site_logo: (settings.site_logo as string) || "",
@@ -133,32 +130,33 @@ const normalizeSocialSettings = (settings: Record<string, unknown>): SocialSetti
   social_youtube: (settings.social_youtube as string) || "",
 });
 
+const getSettingsGroup = async (keys: string[]): Promise<Record<string, unknown>> => {
+  try {
+    const client = getConvexClient();
+    return await client.query(api.settings.getMultiple, { keys });
+  } catch {
+    return {};
+  }
+};
+
 export const getSiteSettings =  async (): Promise<SiteSettings> => {
-  const client = getConvexClient();
-  return client.query(api.settings.getMultiple, {
-    keys: SETTINGS_KEYS.site,
-  }).then(normalizeSiteSettings);
+  const settings = await getSettingsGroup(SETTINGS_KEYS.site);
+  return normalizeSiteSettings(settings);
 };
 
 export const getSEOSettings =  async (): Promise<SEOSettings> => {
-  const client = getConvexClient();
-  return client.query(api.settings.getMultiple, {
-    keys: SETTINGS_KEYS.seo,
-  }).then(normalizeSEOSettings);
+  const settings = await getSettingsGroup(SETTINGS_KEYS.seo);
+  return normalizeSEOSettings(settings);
 };
 
 export const getContactSettings =  async (): Promise<ContactSettings> => {
-  const client = getConvexClient();
-  return client.query(api.settings.getMultiple, {
-    keys: SETTINGS_KEYS.contact,
-  }).then(normalizeContactSettings);
+  const settings = await getSettingsGroup(SETTINGS_KEYS.contact);
+  return normalizeContactSettings(settings);
 };
 
 export const getSocialSettings = async (): Promise<SocialSettings> => {
-  const client = getConvexClient();
-  return client.query(api.settings.getMultiple, {
-    keys: SETTINGS_KEYS.social,
-  }).then(normalizeSocialSettings);
+  const settings = await getSettingsGroup(SETTINGS_KEYS.social);
+  return normalizeSocialSettings(settings);
 };
 
 export const getAllPublicSettings =  async (): Promise<PublicSettings> => Promise.all([
