@@ -60,8 +60,10 @@ interface ResendAccount {
 }
 
 export default function IntegrationsPage() {
-  const settings = useQuery(api.settings.getMultiple, { keys: [...SETTINGS_KEYS] });
+  const settings = useQuery(api.settings.getMultiple, { keys: [...SETTINGS_KEYS, 'brand_name'] });
   const setMultiple = useMutation(api.settings.setMultiple);
+
+  const brandName = typeof settings?.brand_name === 'string' ? settings.brand_name.trim() : 'Dien Tran Store';
 
   const [form, setForm] = useState<Record<SettingsKey, string>>(DEFAULT_FORM);
 
@@ -179,7 +181,7 @@ export default function IntegrationsPage() {
       return;
     }
 
-    const fallbackFromName = newAccFromName.trim() || form.mail_from_name.trim() || 'Thanshoes';
+    const fallbackFromName = newAccFromName.trim() || form.mail_from_name.trim() || brandName;
     const fallbackFromEmail = newAccFromEmail.trim() || form.mail_from_email.trim() || 'onboarding@resend.dev';
     const newAcc: ResendAccount = {
       id: `acc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -239,8 +241,8 @@ export default function IntegrationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: testEmail.trim(),
-          subject: 'Email test từ Thanshoes',
-          html: '<p>Đây là email test từ hệ thống Thanshoes.</p>',
+          subject: `Email test từ ${brandName}`,
+          html: `<p>Đây là email test từ hệ thống ${brandName}.</p>`,
         }),
       });
       if (!response.ok) {
@@ -344,7 +346,7 @@ export default function IntegrationsPage() {
                 value={form.mail_from_name}
                 onChange={(e) => updateField('mail_from_name', e.target.value)}
                 className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                placeholder="Thanshoes Store"
+                placeholder={`${brandName} Store`}
               />
             </div>
             <div className="space-y-1">
@@ -460,7 +462,7 @@ export default function IntegrationsPage() {
                       type="text"
                       value={newAccFromName}
                       onChange={(e) => setNewAccFromName(e.target.value)}
-                      placeholder={form.mail_from_name || 'Thanshoes'}
+                      placeholder={form.mail_from_name || brandName}
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                     />
                   </div>

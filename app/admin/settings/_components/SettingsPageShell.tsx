@@ -155,7 +155,7 @@ const EMAIL_SETTING_KEYS = [
 const EMAIL_DEFAULTS: Record<(typeof EMAIL_SETTING_KEYS)[number], string> = {
   mail_driver: 'resend',
   mail_from_email: 'onboarding@resend.dev',
-  mail_from_name: 'Thanshoes',
+  mail_from_name: 'Dien Tran Store',
   order_notification_emails: '',
 };
 const DEFAULT_HEADER_CONFIG: HeaderConfig = {
@@ -608,8 +608,8 @@ function SettingsContent({ section }: { section: SettingsSection }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: email,
-          subject: 'Email test từ Thanshoes',
-          html: '<p>Đây là email test từ hệ thống Thanshoes.</p>',
+          subject: `Email test từ ${form.brand_name || 'Dien Tran Store'}`,
+          html: `<p>Đây là email test từ hệ thống ${form.brand_name || 'Dien Tran Store'}.</p>`,
         }),
       });
       if (!response.ok) {
@@ -2115,7 +2115,7 @@ function SettingsContent({ section }: { section: SettingsSection }) {
                             <Input
                               value={getStringField('mail_from_name', EMAIL_DEFAULTS.mail_from_name)}
                               onChange={(event) => updateField('mail_from_name', event.target.value)}
-                              placeholder="Thanshoes"
+                              placeholder="Dien Tran Store"
                             />
                           </div>
                           <div className="space-y-2">

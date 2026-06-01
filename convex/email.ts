@@ -32,6 +32,8 @@ async function sendTransactionalEmailInternal(
       "mail_from_email",
       "mail_from_name",
       "resend_accounts",
+      "brand_name",
+      "site_url",
     ],
   });
 
@@ -243,8 +245,9 @@ async function sendTransactionalEmailInternal(
         testMode: selectedAccount.testMode !== false, // default to testMode: true if not specified
       });
 
+      const brandName = (settings.brand_name ?? "Dien Tran Store").trim();
       const finalFromEmail = selectedAccount.fromEmail || fromEmail;
-      const finalFromName = selectedAccount.fromName || fromName || "Thanshoes";
+      const finalFromName = selectedAccount.fromName || fromName || brandName || "Store";
 
       const response = await resendClient.sendEmail(ctx, {
         from: finalFromName ? `${finalFromName} <${finalFromEmail}>` : finalFromEmail,
@@ -308,13 +311,18 @@ export const sendOtpEmail = internalAction({
     email: v.string(),
     otpCode: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
+    const settings = (await ctx.runQuery(api.settings.getMultiple, {
+      keys: ["brand_name"],
+    })) as Record<string, any>;
+    const brandName = settings.brand_name ? String(settings.brand_name).trim() : "Dien Tran Store";
+
     const { getOtpTemplate } = await import("./emailTemplates");
-    const htmlContent = getOtpTemplate(args.otpCode);
+    const htmlContent = getOtpTemplate(args.otpCode, brandName);
 
     return await sendTransactionalEmailInternal(ctx, {
       to: args.email,
-      subject: "[Thanshoes] Mã xác minh tạo mật khẩu",
+      subject: `[${brandName}] Mã xác minh tạo mật khẩu`,
       html: htmlContent,
       eventType: "otp",
     });

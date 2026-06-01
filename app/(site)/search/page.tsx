@@ -144,7 +144,7 @@ function SearchProductCardActions({
           }}
         >
           <ShoppingCart size={12} />
-          <span>{isOutOfStock ? 'Hết hàng' : (product.hasVariants ? 'Chọn size' : 'Thêm giỏ')}</span>
+          <span>{isOutOfStock ? 'Hết hàng' : (product.hasVariants ? 'Chọn phân loại' : 'Thêm giỏ')}</span>
         </button>
       )}
       {showBuyNowButton && (
@@ -242,14 +242,14 @@ function SearchContent() {
   const postCategories = useQuery(api.postCategories.listActive, { limit: 50 });
   const serviceCategories = useQuery(api.serviceCategories.listActive, { limit: 50 });
 
-  const productCategoryMap = useMemo(() => new Map(productCategories?.map(c => [c._id, c.name]) || []), [productCategories]);
-  const productCategorySlugMap = useMemo(() => new Map(productCategories?.map(c => [c._id, c.slug]) || []), [productCategories]);
+  const productCategoryMap = useMemo(() => new Map<string, string>(productCategories?.map((c: any) => [c._id, c.name]) || []), [productCategories]);
+  const productCategorySlugMap = useMemo(() => new Map<string, string>(productCategories?.map((c: any) => [c._id, c.slug]) || []), [productCategories]);
   
-  const postCategoryMap = useMemo(() => new Map(postCategories?.map(c => [c._id, c.name]) || []), [postCategories]);
-  const postCategorySlugMap = useMemo(() => new Map(postCategories?.map(c => [c._id, c.slug]) || []), [postCategories]);
+  const postCategoryMap = useMemo(() => new Map<string, string>(postCategories?.map((c: any) => [c._id, c.name]) || []), [postCategories]);
+  const postCategorySlugMap = useMemo(() => new Map<string, string>(postCategories?.map((c: any) => [c._id, c.slug]) || []), [postCategories]);
   
-  const serviceCategoryMap = useMemo(() => new Map(serviceCategories?.map(c => [c._id, c.name]) || []), [serviceCategories]);
-  const serviceCategorySlugMap = useMemo(() => new Map(serviceCategories?.map(c => [c._id, c.slug]) || []), [serviceCategories]);
+  const serviceCategoryMap = useMemo(() => new Map<string, string>(serviceCategories?.map((c: any) => [c._id, c.name]) || []), [serviceCategories]);
+  const serviceCategorySlugMap = useMemo(() => new Map<string, string>(serviceCategories?.map((c: any) => [c._id, c.slug]) || []), [serviceCategories]);
 
   // Fetch counts
   const prodCount = useQuery(api.products.countPublished, isProductsEnabled ? {
@@ -455,7 +455,7 @@ function SearchContent() {
   });
 
   // Wishlist IDs for current products (to show filled heart)
-  const productIds = useMemo(() => products?.map(p => p._id) ?? [], [products]);
+  const productIds = useMemo(() => products?.map((p: any) => p._id) ?? [], [products]);
   const wishlistProductIds = useQuery(
     api.wishlist.listCustomerProductIds,
     isAuthenticated && customer && productIds.length > 0 && canUseWishlist
@@ -717,7 +717,7 @@ function SearchContent() {
               viewMode === 'grid' ? (
                 // Products Grid View
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-6">
-                  {products.map((product) => {
+                  {products.map((product: any) => {
                     const priceDisplay = getPublicPriceLabel({ 
                       saleMode: 'cart', 
                       price: product.price, 
@@ -813,7 +813,7 @@ function SearchContent() {
               ) : (
                 // Products List View
                 <div className="space-y-4">
-                  {products.map((product) => {
+                  {products.map((product: any) => {
                     const priceDisplay = getPublicPriceLabel({ 
                       saleMode: 'cart', 
                       price: product.price, 
@@ -897,7 +897,7 @@ function SearchContent() {
                                   }}
                                 >
                                   <ShoppingCart size={12} />
-                                  <span className="hidden sm:inline">{(product.hasVariants || product.stock > 0) ? (product.hasVariants ? 'Chọn size' : 'Thêm giỏ') : 'Hết hàng'}</span>
+                                  <span className="hidden sm:inline">{(product.hasVariants || product.stock > 0) ? (product.hasVariants ? 'Chọn phân loại' : 'Thêm giỏ') : 'Hết hàng'}</span>
                                 </button>
                               )}
                               {showBuyNowButton && (
@@ -930,7 +930,7 @@ function SearchContent() {
               viewMode === 'grid' ? (
                 // Posts Grid View
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                  {posts.map((post) => (
+                  {posts.map((post: any) => (
                     <Link
                       key={post._id}
                       href={getPostDetailHref(post)}
@@ -983,7 +983,7 @@ function SearchContent() {
               ) : (
                 // Posts List View
                 <div className="space-y-4">
-                  {posts.map((post) => (
+                  {posts.map((post: any) => (
                     <Link
                       key={post._id}
                       href={getPostDetailHref(post)}
@@ -1044,7 +1044,7 @@ function SearchContent() {
               viewMode === 'grid' ? (
                 // Services Grid View
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                  {services.map((service) => (
+                  {services.map((service: any) => (
                     <Link
                       key={service._id}
                       href={getServiceDetailHref(service)}
@@ -1096,7 +1096,7 @@ function SearchContent() {
               ) : (
                 // Services List View
                 <div className="space-y-4">
-                  {services.map((service) => (
+                  {services.map((service: any) => (
                     <Link
                       key={service._id}
                       href={getServiceDetailHref(service)}

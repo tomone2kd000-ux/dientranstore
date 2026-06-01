@@ -110,11 +110,18 @@ async function handleOrderStatusTransition(
 
   // Chuyển sang Cancelled
   if (isCancelledStatus(newStatus) && !isCancelledStatus(oldStatus)) {
+    const [brandNameSetting, siteUrlSetting] = await Promise.all([
+      ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "brand_name")).unique(),
+      ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "site_url")).unique(),
+    ]);
+    const brandName = brandNameSetting?.value ? String(brandNameSetting.value).trim() : "Dien Tran Store";
+    const siteUrl = siteUrlSetting?.value ? String(siteUrlSetting.value).trim() : "http://localhost:3000";
+
     if (customerDoc.email) {
-      const cancelledHtml = getOrderCancelledTemplate(orderDoc);
+      const cancelledHtml = getOrderCancelledTemplate(orderDoc, siteUrl, brandName);
       await ctx.scheduler.runAfter(0, internal.email.sendTransactionalEmail, {
         to: customerDoc.email,
-        subject: `[Thanshoes] Đơn hàng #${orderDoc.orderNumber} đã bị hủy`,
+        subject: `[${brandName}] Đơn hàng #${orderDoc.orderNumber} đã bị hủy`,
         html: cancelledHtml,
         eventType: "order_cancelled",
         orderId: orderDoc._id,
@@ -124,10 +131,10 @@ async function handleOrderStatusTransition(
     if (options?.notifyShopOnCancel) {
       const shopEmails = await resolveOrderNotificationEmails(ctx);
       if (shopEmails) {
-        const cancelledHtml = getOrderCancelledTemplate(orderDoc, "Khách hàng hoặc quản trị viên yêu cầu hủy.");
+        const cancelledHtml = getOrderCancelledTemplate(orderDoc, siteUrl, brandName, "Khách hàng hoặc quản trị viên yêu cầu hủy.");
         await ctx.scheduler.runAfter(0, internal.email.sendTransactionalEmail, {
           to: shopEmails,
-          subject: `[Thanshoes] Đơn hàng #${orderDoc.orderNumber} đã bị hủy`,
+          subject: `[${brandName}] Đơn hàng #${orderDoc.orderNumber} đã bị hủy`,
           html: cancelledHtml,
           eventType: "order_cancelled_shop",
           orderId: orderDoc._id,
@@ -1183,17 +1190,18 @@ export const placeOrder = mutation({
     const orderDoc = await ctx.db.get(orderId);
     const customerDoc = await ctx.db.get(customerId);
     if (orderDoc && customerDoc) {
-      const siteUrlSetting = await ctx.db
-        .query("settings")
-        .withIndex("by_key", (q) => q.eq("key", "site_url"))
-        .unique();
-      const siteUrl = siteUrlSetting?.value ? String(siteUrlSetting.value).trim() : "https://thanshoes.vn";
+      const [siteUrlSetting, brandNameSetting] = await Promise.all([
+        ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "site_url")).unique(),
+        ctx.db.query("settings").withIndex("by_key", (q) => q.eq("key", "brand_name")).unique(),
+      ]);
+      const siteUrl = siteUrlSetting?.value ? String(siteUrlSetting.value).trim() : "http://localhost:3000";
+      const brandName = brandNameSetting?.value ? String(brandNameSetting.value).trim() : "Dien Tran Store";
 
       if (customerDoc.email) {
-        const customerHtml = getOrderPlacedCustomerTemplate(orderDoc, siteUrl);
+        const customerHtml = getOrderPlacedCustomerTemplate(orderDoc, siteUrl, brandName);
         await ctx.scheduler.runAfter(0, internal.email.sendTransactionalEmail, {
           to: customerDoc.email,
-          subject: `[Thanshoes] Xác nhận đơn hàng #${orderDoc.orderNumber}`,
+          subject: `[${brandName}] Xác nhận đơn hàng #${orderDoc.orderNumber}`,
           html: customerHtml,
           eventType: "order_placed",
           orderId: orderDoc._id,
@@ -1202,10 +1210,10 @@ export const placeOrder = mutation({
 
       const shopEmails = await resolveOrderNotificationEmails(ctx);
       if (shopEmails) {
-        const shopHtml = getOrderPlacedShopTemplate(orderDoc, customerDoc, siteUrl);
+        const shopHtml = getOrderPlacedShopTemplate(orderDoc, customerDoc, siteUrl, brandName);
         await ctx.scheduler.runAfter(0, internal.email.sendTransactionalEmail, {
           to: shopEmails,
-          subject: `[Thanshoes] Đơn hàng mới #${orderDoc.orderNumber}`,
+          subject: `[${brandName}] Đơn hàng mới #${orderDoc.orderNumber}`,
           html: shopHtml,
           eventType: "order_placed_shop",
           orderId: orderDoc._id,
