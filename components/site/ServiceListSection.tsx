@@ -177,6 +177,15 @@ export function ServiceListSection({
     return sorted.slice(0, itemCount);
   }, [servicesData, selectionMode, selectedServiceIds, itemCount, sortBy, snapshotData, demoServices]);
 
+  const tokens = React.useMemo(() => {
+    const rawTokens = getServiceListColorTokens({
+      primary: brandColor,
+      secondary,
+      mode,
+    });
+    return adaptTokensForDarkMode(rawTokens, isDark ?? false);
+  }, [brandColor, secondary, mode, isDark]);
+
   if (selectionMode !== 'demo' && !snapshotData && servicesData === undefined) {
     return (
       <section className="py-12 md:py-16 px-4">
@@ -186,15 +195,6 @@ export function ServiceListSection({
       </section>
     );
   }
-
-  const tokens = React.useMemo(() => {
-    const rawTokens = getServiceListColorTokens({
-      primary: brandColor,
-      secondary,
-      mode,
-    });
-    return adaptTokensForDarkMode(rawTokens, isDark ?? false);
-  }, [brandColor, secondary, mode, isDark]);
 
   const items = services.map((service, index) => {
     const preview = mapServiceToPreview(service, index, { categorySlugMap, routeMode });
